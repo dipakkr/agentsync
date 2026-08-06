@@ -12,6 +12,12 @@ All notable changes to this project are documented here. The format is based on
   manual refresh. Covered by a regression test.
 
 ### Added
+- **`agentsync up`** — one command from a fresh clone to fully live: inits the repo, starts
+  (or points at) a hub, sets you up, opens the dashboard, and prints the invite line.
+- **`agentsync invite`** — reprints the one-line command teammates paste to join.
+- **One-click self-hosting** — `render.yaml` + "Deploy to Render" button, `railway.json` +
+  Railway button, and a `Dockerfile` for Fly.io / any container host. Hub honors `PORT` and
+  `AGENTSYNC_TOKEN`. (Vercel is not supported — the hub is a stateful WebSocket server.)
 - **`agentsync init`** — make any project repo AgentSync-aware in one command: drops in
   `agentsync.config.yaml` and an `AGENTS.md` guide (the "how to use AgentSync" context
   agents read automatically), a `CLAUDE.md` pointer, and gitignores `.agentsync/`.

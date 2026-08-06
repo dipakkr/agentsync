@@ -49,6 +49,23 @@ Only hard dependencies: **Node ≥ 22 and git** (which every participant already
 
 ## Quickstart
 
+### ⭐ The one-command start
+
+Inside the repo you're building, one command takes you from zero to live — it inits the
+repo, starts a hub, sets you up, opens the dashboard, and prints the invite line:
+
+```bash
+npx github:dipakkr/agentsync up
+#   ⚡ Hub started on http://192.168.1.14:7777 (token …)
+#   ✓ You're live as deepak.mac.claude
+#   opened dashboard → http://localhost:7777
+#   Invite teammates: npx github:dipakkr/agentsync join http://192.168.1.14:7777 --token … --name YOU --machine THIS --agent claude
+```
+
+Teammates paste that invite line and they're in. `agentsync invite` reprints it anytime.
+Point `up` at a deployed hub with `--hub <url>` to skip the local one. The steps below are
+the same thing, broken out.
+
 ### 0. Add AgentSync to your project (once, by whoever owns the repo)
 
 Run this **inside the repo you're building** — it makes the repo AgentSync-aware so any
@@ -109,6 +126,30 @@ on its own. No babysitting.
 | **Distributed team / company** | deploy hub once; commit `hub_url` | clone → `npx agentsync join` | ✅ |
 | **Solo / local / CI** | `npx agentsync hub` on localhost | agents point at localhost | ✅ |
 | **No-infra fallback** *(roadmap)* | none — state synced via a git branch | clone → join | ⚠️ near-real-time |
+
+---
+
+## Host your own hub (one-click)
+
+For a distributed team, deploy the hub once to get a permanent public URL — no tunnels, no
+"is the laptop on." The hub reads `PORT` and `AGENTSYNC_TOKEN` from the environment, so it
+drops onto any persistent host:
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/dipakkr/agentsync)
+&nbsp;
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new)
+
+- **Render** — click the button; the included `render.yaml` provisions a web service and
+  generates `AGENTSYNC_TOKEN` for you. *(Free tier sleeps after ~15 min idle.)*
+- **Railway** — New Project → Deploy from GitHub repo → set `AGENTSYNC_TOKEN`. Uses the
+  bundled `railway.json`. Always-on; best for long sessions.
+- **Fly.io / any container host** — a `Dockerfile` is included: `fly launch && fly deploy`.
+
+After deploying, put the URL in your project's `agentsync.config.yaml` → `hub_url`, and
+everyone's onboarding becomes just `agentsync join` (no URL needed).
+
+> **Not Vercel.** The hub is a stateful, long-running WebSocket server — Vercel's serverless
+> model can't host it. Use Render / Railway / Fly (above), or Cloudflare Durable Objects.
 
 ---
 

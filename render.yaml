@@ -1,0 +1,13 @@
+# Render blueprint — powers the "Deploy to Render" button.
+# One click provisions the hub, generates a token, and gives you a public https URL.
+services:
+  - type: web
+    name: agentsync-hub
+    runtime: node
+    plan: free            # note: free web services sleep after ~15 min idle (cold start)
+    buildCommand: npm ci
+    startCommand: node src/cli/index.js hub
+    healthCheckPath: /health
+    envVars:
+      - key: AGENTSYNC_TOKEN
+        generateValue: true   # Render generates a strong random token for you

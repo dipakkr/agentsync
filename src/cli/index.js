@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join, resolve, basename } from "node:path";
 import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync, chmodSync } from "node:fs";
 import { execSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { createInterface } from "node:readline/promises";
 import { networkInterfaces } from "node:os";
 import { parse as parseYaml } from "yaml";
@@ -47,9 +48,9 @@ async function cmdHub() {
   process.on("SIGINT", () => process.exit(0));
 }
 
-async function cmdJoin() {
-  const url = args[1] && !args[1].startsWith("--") ? args[1] : (loadConfig().hub_url || "");
-  if (!url) return fail("Usage: agentsync join <hub-url> [--name … --machine … --agent … --role …]");
+// Shared onboarding: figure out who this agent is, then write identity + MCP config +
+// hooks, and ping the hub so they appear on the roster. Reused by `join` and `up`.
+async function setupMember(url, token) {
   const cfg = loadConfig();
   const interactive = !flag("name") && process.stdin.isTTY;
   let person = flag("name"), machine = flag("machine"), agent = flag("agent", "human"), role = flag("role", "coder");
@@ -64,18 +65,73 @@ async function cmdJoin() {
   }
   if (!person || !machine) return fail("Need at least --name and --machine.");
   const member = { id: `${person}.${machine}.${agent}`.toLowerCase().replace(/\s+/g, "-"), person, machine, agentKind: agent, role };
-  const token = flag("token", cfg.token || "");
   saveIdentity({ member, hubUrl: url, token });
-
   writeMcpConfig(url, token, agent);
   installHooks();
-
-  say(`\n  ${c.g}✓ Joined as ${c.b}${member.id}${c.reset}${c.g} (${role})${c.reset}`);
-  say(`  ${c.dim}identity → .agentsync/identity.json${c.reset}`);
-  say(`  ${c.dim}dashboard → ${url}${c.reset}`);
-  say(`\n  Your ${agent} agent can now use the agentsync MCP tools. Start it and say hi in the chat.\n`);
-  // quick presence ping so they show up immediately
   try { const cl = new HubClient({ url, token, member }); await cl.connect(); await cl.register(); cl.postMessage(`👋 ${member.id} joined`); setTimeout(() => cl.close(), 400); } catch {}
+  return member;
+}
+
+function printInvite(url, token) {
+  const cmd = `npx github:dipakkr/agentsync join ${url}${token ? ` --token ${token}` : ""} --name YOU --machine THIS --agent claude`;
+  say(`\n  ${c.b}Invite teammates${c.reset} — share this line (change YOU/THIS/agent):`);
+  say(`    ${c.cy}${cmd}${c.reset}`);
+}
+
+async function cmdJoin() {
+  const url = args[1] && !args[1].startsWith("--") ? args[1] : (loadConfig().hub_url || "");
+  if (!url) return fail("Usage: agentsync join <hub-url> [--name … --machine … --agent … --role …]");
+  const token = flag("token", loadConfig().token || "");
+  const member = await setupMember(url, token);
+  say(`\n  ${c.g}✓ Joined as ${c.b}${member.id}${c.reset}${c.g} (${member.role})${c.reset}`);
+  say(`  ${c.dim}identity → .agentsync/identity.json  ·  dashboard → ${url}${c.reset}`);
+  say(`  ${c.dim}Your agent can now use the agentsync MCP tools. Start it and say hi.${c.reset}`);
+}
+
+// One command to go from a fresh clone to fully live: init the repo, bring up (or point at)
+// a hub, set yourself up, open the dashboard, and print the invite line.
+async function cmdUp() {
+  if (!existsSync(CONFIG_PATH)) ensureProjectFiles(flag("hub", ""));
+  const cfg = loadConfig();
+  let token = flag("token", process.env.AGENTSYNC_TOKEN || cfg.token || "");
+  let hubUrl = flag("hub", cfg.hub_url || "");
+  const remote = hubUrl && !/(localhost|127\.0\.0\.1)/.test(hubUrl);
+  const port = Number(flag("port", 7777));
+  let localHub = null;
+
+  if (!remote) {
+    if (!token) token = randomBytes(6).toString("hex");
+    const lan = lanIP();
+    hubUrl = `http://${lan || "localhost"}:${port}`;
+    localHub = startHub({ port, token, logPath: join(CWD, ".agentsync", "events.ndjson") });
+    say(`\n  ${c.b}${c.cy}⚡ Hub started${c.reset} on ${c.g}${hubUrl}${c.reset} ${c.dim}(token ${token})${c.reset}`);
+  } else {
+    say(`\n  ${c.b}Using hub${c.reset} ${c.g}${hubUrl}${c.reset}`);
+  }
+
+  const member = await setupMember(hubUrl, token);
+  say(`  ${c.g}✓ You're live as ${c.b}${member.id}${c.reset}`);
+
+  const dash = localHub ? `http://localhost:${port}` : hubUrl;
+  if (args.includes("--no-open")) say(`  ${c.dim}dashboard → ${dash}${c.reset}`);
+  else try { execSync(`open "${dash}"`, { stdio: "ignore" }); say(`  ${c.dim}opened dashboard → ${dash}${c.reset}`); }
+  catch { say(`  ${c.dim}dashboard → ${dash}${c.reset}`); }
+
+  printInvite(hubUrl, token);
+
+  if (localHub) {
+    say(`\n  ${c.dim}Hub is running here — keep this terminal open. Ctrl-C to stop.${c.reset}\n`);
+    process.on("SIGINT", () => process.exit(0));
+  } else process.exit(0);
+}
+
+function cmdInvite() {
+  const id = loadIdentity(), cfg = loadConfig();
+  const url = flag("hub", id?.hubUrl || cfg.hub_url || "");
+  const token = flag("token", id?.token || cfg.token || "");
+  if (!url) return fail("No hub yet. Run `agentsync up` (local) or `agentsync join <url>` first.");
+  printInvite(url, token);
+  say("");
 }
 
 function writeMcpConfig(url, token, agent) {
@@ -154,9 +210,9 @@ async function cmdStatus() {
 function cmdWhoami() { const id = loadIdentity(); say(id ? JSON.stringify(id.member, null, 2) : "Not joined. Run: agentsync join <url>"); }
 
 // Make ANY project repo AgentSync-aware: drop in the config + the agent usage guide
-// (so coding agents that open this repo know how to use the tool) + gitignore + hooks.
-function cmdInit() {
-  const hub = flag("hub", "");
+// (so coding agents that open this repo know how to use the tool) + gitignore.
+// Returns {wrote, skipped, project}; used by both `init` (prints) and `up` (silent).
+function ensureProjectFiles(hub) {
   const project = flag("project", basename(CWD));
   let wrote = [], skipped = [];
 
@@ -192,7 +248,12 @@ function cmdInit() {
   if (!gi.split("\n").some((l) => l.trim() === ".agentsync/")) {
     writeFileSync(giPath, (gi ? gi.trimEnd() + "\n" : "") + ".agentsync/\n"); wrote.push(".gitignore (+.agentsync/)");
   }
+  return { wrote, skipped, project };
+}
 
+function cmdInit() {
+  const hub = flag("hub", "");
+  const { wrote, skipped, project } = ensureProjectFiles(hub);
   say(`\n  ${c.g}✓ AgentSync initialized in ${c.b}${project}${c.reset}`);
   if (wrote.length) say(`  ${c.dim}created: ${wrote.join(", ")}${c.reset}`);
   if (skipped.length) say(`  ${c.dim}kept:    ${skipped.join(", ")}${c.reset}`);
@@ -215,6 +276,8 @@ function fail(msg) { console.error(msg); process.exit(1); }
 
 const HELP = `agentsync — coordination hub for teams of humans + AI coding agents
 
+  agentsync up [--hub <url>] [--token …]      ⭐ one command: init + hub + join + dashboard + invite
+  agentsync invite                             print the one-line command teammates paste to join
   agentsync init [--hub <url>]                make THIS repo AgentSync-aware (config + AGENTS.md context)
   agentsync hub [--port 7777] [--token …]     start the hub + dashboard
   agentsync join <url> [--token …]            join from a clone (onboarding, MCP config, hooks)
@@ -224,7 +287,8 @@ const HELP = `agentsync — coordination hub for teams of humans + AI coding age
   agentsync announce | guard-commit           internal (git hooks)`;
 
 const table = {
-  init: cmdInit, hub: cmdHub, join: cmdJoin, announce: cmdAnnounce, "guard-commit": cmdGuardCommit,
+  up: cmdUp, invite: cmdInvite, init: cmdInit, hub: cmdHub, join: cmdJoin,
+  announce: cmdAnnounce, "guard-commit": cmdGuardCommit,
   status: cmdStatus, whoami: cmdWhoami,
   mcp: async () => { await import("../mcp/server.js"); },
 };

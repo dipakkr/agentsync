@@ -1,0 +1,7 @@
+node_modules
+.git
+.agentsync
+*.ndjson
+.DS_Store
+scripts
+.github
