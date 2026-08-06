@@ -1,0 +1,45 @@
+# AgentSync project configuration (committed — the shared "rules of engagement").
+# Per-person secrets (token, identity) live in the gitignored .agentsync/ folder, not here.
+
+project: my-project
+
+# For a persistent team, deploy the hub once and put its URL here so `agentsync join`
+# is zero-argument. For an ephemeral hackathon, leave this blank and pass --hub on join.
+hub_url: ""
+
+# Roles a member can take. Used to assign work and to render the roster.
+# Sandbox is advisory metadata the CLI passes to agents; the hub does not enforce it.
+roles:
+  - name: orchestrator   # drafts the plan, decomposes tasks, assigns roles
+    sandbox: read-write
+  - name: coder
+    sandbox: read-write
+  - name: frontend
+    sandbox: read-write
+  - name: backend
+    sandbox: read-write
+  - name: reviewer       # reads PRs, never edits
+    sandbox: read-only
+  - name: planner
+    sandbox: read-only
+
+# "Hot files" everyone touches. Claiming a task whose scope includes these triggers a
+# stronger warning — serialize them or route through a human.
+hot_files:
+  - package.json
+  - package-lock.json
+  - "**/schema.*"
+  - "**/*.config.*"
+  - .env.example
+
+# Paths a commit-msg / pre-push hook should refuse to let an agent commit.
+protected_paths:
+  - .env
+  - "**/*.key"
+  - "**/secrets.*"
+
+git:
+  # Branch template. {person}/{agent}/{slug} keeps the roster readable in `git branch`.
+  branch_template: "{person}/{agent}/{slug}"
+  # main is only ever advanced by CI auto-merge of a green PR. Never pushed directly.
+  protected_branch: main

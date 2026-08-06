@@ -1,0 +1,9 @@
+#!/bin/sh
+# AgentSync pre-commit: block protected paths (.env, keys, secrets). Exit code must propagate.
+TOP=$(git rev-parse --show-toplevel)
+if [ -f "$TOP/src/cli/index.js" ]; then
+  exec node "$TOP/src/cli/index.js" guard-commit
+elif command -v npx >/dev/null 2>&1; then
+  exec npx --no-install agentsync guard-commit
+fi
+exit 0

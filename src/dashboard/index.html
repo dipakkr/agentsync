@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AgentSync · dashboard</title>
+<style>
+  :root {
+    --bg:#0b0e14; --panel:#141922; --panel2:#1b2230; --line:#273040;
+    --text:#e6e9ef; --dim:#8b95a7; --accent:#5b8def; --ok:#3ecf8e; --warn:#f0b429; --off:#5a6373;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#f4f6fa; --panel:#fff; --panel2:#eef1f6; --line:#dde3ec;
+            --text:#1a2030; --dim:#68728a; --accent:#3b6fd6; --ok:#1f9d63; --warn:#b9791a; --off:#a7b0c0; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+         background:var(--bg); color:var(--text); }
+  header { display:flex; align-items:center; gap:14px; padding:12px 18px;
+           border-bottom:1px solid var(--line); background:var(--panel); }
+  header h1 { font-size:15px; margin:0; letter-spacing:.3px; }
+  header .badge { font-size:12px; color:var(--dim); }
+  .dot { width:8px; height:8px; border-radius:50%; display:inline-block; background:var(--off); }
+  .dot.on { background:var(--ok); box-shadow:0 0 8px var(--ok); }
+  main { display:grid; grid-template-columns:260px 1fr 340px; gap:14px; padding:14px; height:calc(100vh - 50px); }
+  .col { display:flex; flex-direction:column; gap:14px; min-height:0; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 14px;
+          display:flex; flex-direction:column; min-height:0; }
+  .card h2 { font-size:11px; text-transform:uppercase; letter-spacing:.8px; color:var(--dim);
+             margin:0 0 10px; font-weight:600; }
+  .scroll { overflow-y:auto; min-height:0; }
+  .member { display:flex; align-items:center; gap:8px; padding:6px 0; }
+  .member .who { font-weight:600; }
+  .member .role { font-size:11px; color:var(--dim); margin-left:auto; padding:1px 7px;
+                  border:1px solid var(--line); border-radius:20px; }
+  .plan { white-space:pre-wrap; font-size:13px; color:var(--text); }
+  .pill { font-size:10px; padding:2px 8px; border-radius:20px; text-transform:uppercase; letter-spacing:.5px; }
+  .pill.approved { background:rgba(62,207,142,.15); color:var(--ok); }
+  .pill.draft { background:rgba(240,180,41,.15); color:var(--warn); }
+  #chat { flex:1; }
+  .msg { padding:5px 0; border-bottom:1px solid var(--line); }
+  .msg .from { font-weight:600; color:var(--accent); }
+  .msg.hub .from { color:var(--warn); }
+  .msg .t { color:var(--dim); font-size:11px; margin-left:6px; }
+  .composer { display:flex; gap:8px; margin-top:10px; }
+  .composer input { flex:1; background:var(--panel2); border:1px solid var(--line); color:var(--text);
+                    border-radius:8px; padding:8px 10px; font-size:13px; }
+  .composer button { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:8px 14px; cursor:pointer; }
+  .task { background:var(--panel2); border:1px solid var(--line); border-radius:9px; padding:8px 10px; margin-bottom:8px; }
+  .task .ttl { font-weight:600; }
+  .task .meta { font-size:11px; color:var(--dim); margin-top:3px; }
+  .task .scope { font-family:ui-monospace,monospace; font-size:11px; color:var(--dim); }
+  .task.claimed { border-left:3px solid var(--accent); }
+  .task.done { opacity:.5; }
+  .board-group h3 { font-size:11px; color:var(--dim); margin:4px 0 6px; }
+  .timeline .ev { font-size:12px; color:var(--dim); padding:3px 0; border-bottom:1px dashed var(--line); }
+  .timeline .ev b { color:var(--text); font-weight:600; }
+</style>
+</head>
+<body>
+<header>
+  <h1>⚡ AgentSync</h1>
+  <span class="badge"><span id="conn" class="dot"></span> <span id="connlbl">connecting…</span></span>
+  <span class="badge" id="onlinecount">0 online</span>
+</header>
+<main>
+  <div class="col">
+    <div class="card" style="flex:0 0 auto; max-height:45%;">
+      <h2>Roster</h2>
+      <div id="roster" class="scroll"></div>
+    </div>
+    <div class="card" style="flex:1;">
+      <h2>Plan <span id="planpill"></span></h2>
+      <div id="plan" class="plan scroll">No plan yet.</div>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="card" style="flex:1;">
+      <h2>Team chat</h2>
+      <div id="chat" class="scroll"></div>
+      <div class="composer">
+        <input id="chatin" placeholder="Message the team…" autocomplete="off" />
+        <button id="send">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="card" style="flex:1;">
+      <h2>Task board</h2>
+      <div id="board" class="scroll"></div>
+    </div>
+    <div class="card" style="flex:0 0 34%;">
+      <h2>Activity</h2>
+      <div id="timeline" class="timeline scroll"></div>
+    </div>
+  </div>
+</main>
+<script>
+const state = { members:[], tasks:[], plan:null, messages:[] };
+const $ = (id) => document.getElementById(id);
+const time = (ts) => new Date(ts).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+
+let ws;
+function connect() {
+  ws = new WebSocket(`ws://${location.host}/ws`);
+  ws.onopen = () => { $("conn").classList.add("on"); $("connlbl").textContent = "live"; };
+  ws.onclose = () => { $("conn").classList.remove("on"); $("connlbl").textContent = "reconnecting…"; setTimeout(connect, 1500); };
+  ws.onmessage = (e) => onMsg(JSON.parse(e.data));
+}
+function onMsg(m) {
+  if (m.type === "welcome" || m.type === "registered") Object.assign(state, m.state);
+  else if (m.type === "presence") state.members = m.members;
+  else if (m.type === "task.list") state.tasks = m.tasks;
+  else if (m.type === "plan.update") state.plan = m.plan;
+  else if (m.type === "event") applyEvent(m.event);
+  renderAll();
+}
+function applyEvent(ev) {
+  if (ev.type === "chat") state.messages.push({ from: ev.actor, text: ev.text, ts: ev.ts });
+  if (ev.type === "member.register") { const i = state.members.findIndex(x=>x.id===ev.member.id);
+    if (i<0) state.members.push({...ev.member, online:true}); else state.members[i]={...state.members[i],...ev.member,online:true}; }
+  if (ev.type === "member.presence") { const mm = state.members.find(x=>x.id===ev.memberId); if (mm) mm.online = ev.online; }
+  pushTimeline(ev);
+}
+function pushTimeline(ev) {
+  const label = {
+    "member.register":"joined", "member.presence": ev.online?"online":"offline",
+    "task.add":"added task", "task.claim":"claimed task", "task.release":"released task",
+    "task.complete":"completed task", "plan.set":"set the plan", "plan.approve":"approved the plan",
+    "edit.announce":"announced a push", "chat":null
+  }[ev.type];
+  if (!label) return;
+  const el = document.createElement("div"); el.className = "ev";
+  el.innerHTML = `<b>${ev.actor}</b> ${label} <span style="float:right">${time(ev.ts)}</span>`;
+  $("timeline").prepend(el);
+  while ($("timeline").childElementCount > 60) $("timeline").lastChild.remove();
+}
+function renderAll() { renderRoster(); renderPlan(); renderChat(); renderBoard(); }
+function renderRoster() {
+  const online = state.members.filter(m=>m.online).length;
+  $("onlinecount").textContent = `${online} online · ${state.members.length} members`;
+  $("roster").innerHTML = state.members
+    .sort((a,b)=> (b.online-a.online) || a.id.localeCompare(b.id))
+    .map(m => `<div class="member"><span class="dot ${m.online?"on":""}"></span>
+      <span class="who">${m.person||m.id}</span>
+      <span class="role">${m.agentKind||"human"}${m.role?" · "+m.role:""}</span></div>`).join("") || "<div style='color:var(--dim)'>Nobody here yet.</div>";
+}
+function renderPlan() {
+  $("plan").textContent = state.plan?.text || "No plan yet.";
+  $("planpill").innerHTML = state.plan ? `<span class="pill ${state.plan.status}">${state.plan.status}</span>` : "";
+}
+function renderChat() {
+  $("chat").innerHTML = state.messages.slice(-200).map(mm =>
+    `<div class="msg ${mm.from==="hub"?"hub":""}"><span class="from">${mm.from}</span>
+     <span class="t">${time(mm.ts)}</span><div>${escapeHtml(mm.text)}</div></div>`).join("");
+  $("chat").scrollTop = $("chat").scrollHeight;
+}
+function renderBoard() {
+  const groups = { open:[], claimed:[], done:[] };
+  for (const t of state.tasks) (groups[t.status]||groups.open).push(t);
+  const g = (name, items) => !items.length ? "" :
+    `<div class="board-group"><h3>${name} (${items.length})</h3>` + items.map(t =>
+      `<div class="task ${t.status}"><div class="ttl">${escapeHtml(t.title)}</div>
+       <div class="meta">${t.owner?("👤 "+t.owner):"unclaimed"}${t.role?" · "+t.role:""}</div>
+       <div class="scope">${(t.scope||[]).join("  ")}</div></div>`).join("") + `</div>`;
+  $("board").innerHTML = g("Claimed", groups.claimed) + g("Open", groups.open) + g("Done", groups.done)
+    || "<div style='color:var(--dim)'>No tasks yet.</div>";
+}
+function escapeHtml(s){ return String(s).replace(/[&<>]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+
+$("send").onclick = sendChat;
+$("chatin").addEventListener("keydown", e => { if (e.key === "Enter") sendChat(); });
+function sendChat() {
+  const t = $("chatin").value.trim(); if (!t) return;
+  ws.send(JSON.stringify({ type:"chat", text:t, from:"dashboard" })); $("chatin").value = "";
+}
+connect();
+</script>
+</body>
+</html>

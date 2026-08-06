@@ -1,0 +1,58 @@
+{
+  "name": "agentsync",
+  "version": "0.1.0",
+  "description": "AgentSync — multi-agent collaboration for AI coding teams. One repo, many humans + AI agents (Claude, Codex, Kimi…) working together with a shared plan, file-scope claims, live chat, and MCP-native conflict warnings — so fast agents never collide.",
+  "type": "module",
+  "bin": {
+    "agentsync": "src/cli/index.js"
+  },
+  "scripts": {
+    "hub": "node src/cli/index.js hub",
+    "mcp": "node src/mcp/server.js",
+    "demo": "node scripts/demo-member.js",
+    "test": "node scripts/smoke.js"
+  },
+  "files": [
+    "src",
+    "hooks",
+    "agentsync.config.yaml",
+    "AGENTS.md",
+    "README.md",
+    "LICENSE"
+  ],
+  "author": "Deepak (dipakkr) <dipakkr.co@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dipakkr/agentsync.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dipakkr/agentsync/issues"
+  },
+  "homepage": "https://github.com/dipakkr/agentsync#readme",
+  "keywords": [
+    "ai-agents",
+    "ai-coding-agents",
+    "claude",
+    "claude-code",
+    "codex",
+    "multi-agent",
+    "multi-agent-collaboration",
+    "multi-agent-orchestration",
+    "coordination",
+    "collaboration",
+    "conflict-free",
+    "mcp",
+    "git-worktrees",
+    "orchestration",
+    "hackathon"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "ws": "^8.18.0",
+    "yaml": "^2.6.0"
+  }
+}

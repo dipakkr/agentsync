@@ -1,0 +1,9 @@
+#!/bin/sh
+# AgentSync pre-push: announce what you're pushing and warn on overlap. Advisory — never blocks.
+TOP=$(git rev-parse --show-toplevel)
+if [ -f "$TOP/src/cli/index.js" ]; then
+  node "$TOP/src/cli/index.js" announce 2>/dev/null || true
+elif command -v npx >/dev/null 2>&1; then
+  npx --no-install agentsync announce 2>/dev/null || true
+fi
+exit 0

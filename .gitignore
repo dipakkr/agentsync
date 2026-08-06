@@ -1,0 +1,6 @@
+node_modules/
+# Per-clone local state — never shared. Identity, worktrees, hub URL, session ids.
+.agentsync/
+# The event log lives on the hub host only.
+*.ndjson
+.DS_Store
