@@ -31,6 +31,12 @@ All notable changes to this project are documented here. The format is based on
 - Single-file live dashboard (roster · chat · task board · activity timeline).
 - CLI: `hub`, `join` (interactive onboarding + MCP config + hook install), `status`, `whoami`.
 - Agent onboarding via `AGENTS.md` / `CLAUDE.md`.
+- Documentation: CLI reference and troubleshooting in the README; `docs/` reference set
+  (MCP tools, configuration, hub HTTP/WS API, deployment guide).
+
+### Fixed
+- `AGENTS.md` no longer instructs agents to call `read_messages` — that tool does not
+  exist in the MCP server; chat is pulled via the dashboard or `GET /state`.
 
 ## [0.1.0] — 2026-08-06
 
