@@ -52,7 +52,7 @@ export class HubClient {
       const mem = this.state.members.find((x) => x.id === ev.memberId);
       if (mem) mem.online = ev.online;
     } else if (ev.type === "chat") {
-      this.state.messages.push({ from: ev.actor, to: ev.to || null, text: ev.text, ts: ev.ts });
+      this.state.messages.push({ id: ev.seq, from: ev.actor, to: ev.to || null, text: ev.text, ts: ev.ts });
     }
   }
 
@@ -83,6 +83,22 @@ export class HubClient {
   releaseTask(taskId) { this._safeSend({ type: "task.release", taskId }); }
   completeTask(taskId) { this._safeSend({ type: "task.complete", taskId }); }
   postMessage(text, to = null) { this._safeSend({ type: "chat", text, to }); }
+
+  /**
+   * Your inbox: broadcasts + messages addressed to you (and your own, for context).
+   * Poll with the `max_id` you last saw to get only what's new — this is how one
+   * agent picks up another agent's reply. `all:true` returns every message (what
+   * the dashboard shows a human). Reads from live local state kept current over WS.
+   */
+  readMessages({ sinceId = 0, all = false, limit = 50 } = {}) {
+    const me = this.member?.id;
+    let msgs = this.state.messages || [];
+    if (sinceId) msgs = msgs.filter((m) => (m.id || 0) > sinceId);
+    if (!all) msgs = msgs.filter((m) => !m.to || m.to === me || m.from === me);
+    msgs = msgs.slice(-limit);
+    const maxId = msgs.reduce((x, m) => Math.max(x, m.id || 0), sinceId);
+    return { messages: msgs, max_id: maxId, me };
+  }
 
   async claimTask(taskId) {
     this._safeSend({ type: "task.claim", taskId, memberId: this.member.id });

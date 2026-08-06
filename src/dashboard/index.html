@@ -42,6 +42,8 @@
   .msg .from { font-weight:600; color:var(--accent); }
   .msg.hub .from { color:var(--warn); }
   .msg .t { color:var(--dim); font-size:11px; margin-left:6px; }
+  .msg .to { font-weight:500; color:var(--ok); font-size:12px; }
+  .msg.direct { border-left:2px solid var(--ok); padding-left:7px; }
   .composer { display:flex; gap:8px; margin-top:10px; }
   .composer input { flex:1; background:var(--panel2); border:1px solid var(--line); color:var(--text);
                     border-radius:8px; padding:8px 10px; font-size:13px; }
@@ -119,7 +121,7 @@ function onMsg(m) {
   renderAll();
 }
 function applyEvent(ev) {
-  if (ev.type === "chat") state.messages.push({ from: ev.actor, text: ev.text, ts: ev.ts });
+  if (ev.type === "chat") state.messages.push({ id: ev.seq, from: ev.actor, to: ev.to || null, text: ev.text, ts: ev.ts });
   if (ev.type === "member.register") { const i = state.members.findIndex(x=>x.id===ev.member.id);
     if (i<0) state.members.push({...ev.member, online:true}); else state.members[i]={...state.members[i],...ev.member,online:true}; }
   if (ev.type === "member.presence") { const mm = state.members.find(x=>x.id===ev.memberId); if (mm) mm.online = ev.online; }
@@ -154,7 +156,7 @@ function renderPlan() {
 }
 function renderChat() {
   $("chat").innerHTML = state.messages.slice(-200).map(mm =>
-    `<div class="msg ${mm.from==="hub"?"hub":""}"><span class="from">${mm.from}</span>
+    `<div class="msg ${mm.from==="hub"?"hub":""} ${mm.to?"direct":""}"><span class="from">${mm.from}${mm.to?` <span class="to">→ ${mm.to}</span>`:""}</span>
      <span class="t">${time(mm.ts)}</span><div>${escapeHtml(mm.text)}</div></div>`).join("");
   $("chat").scrollTop = $("chat").scrollHeight;
 }

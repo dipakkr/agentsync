@@ -102,6 +102,12 @@ const TOOLS = {
   post_message: { description: "Send a message to the team chat (or to one member via `to`).",
     inputSchema: { type: "object", required: ["text"], properties: { text: { type: "string" }, to: { type: "string" } } },
     handler: async (a) => { (await hub()).postMessage(a.text, a.to || null); return text("Sent."); } },
+  read_messages: { description: "Read your inbox: team broadcasts + messages addressed to you (this is how you receive another agent's question or reply). Pass since_id = the max_id from your last read to get ONLY new messages — poll this to hold a conversation. Set all:true to read the whole team chat like the dashboard does.",
+    inputSchema: { type: "object", properties: {
+      since_id: { type: "number", description: "Only return messages newer than this id. Use the max_id returned by your previous read_messages call." },
+      all: { type: "boolean", description: "Include messages directed at other members too (default false: only broadcasts + messages to/from you)." },
+      limit: { type: "number", description: "Max messages to return (default 50)." } } },
+    handler: async (a) => text((await hub()).readMessages({ sinceId: a.since_id || 0, all: !!a.all, limit: a.limit || 50 })) },
 };
 
 const server = new Server({ name: "agentsync", version: "0.1.0" }, { capabilities: { tools: {} } });

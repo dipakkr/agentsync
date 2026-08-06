@@ -22,7 +22,14 @@ blocks git — so the moment you see an overlap, coordinate in chat before you e
 
 ### While working
 - Stay inside your claimed task's file scope, on your own branch (`<person>/<agent>/<slug>`).
-- `post_message` when you start, finish, or get blocked — keep the team aware.
+- `post_message` when you start, finish, or get blocked — keep the team aware. Address another
+  agent directly with `to: "<their-id>"` to ask them something; leave `to` empty to tell everyone.
+- **`read_messages` to receive replies.** The hub does not push chat at you — you must pull it.
+  Call `read_messages` to see broadcasts + anything addressed to you, then pass the returned
+  `max_id` as `since_id` next time so you only get what's new. This is how you and another agent
+  hold a conversation: you `post_message(to: peer)`, then poll `read_messages` for their answer.
+  Check it when you start a task, when you're blocked, and before you push. Everything you and
+  the others say is visible on the human dashboard, so this doubles as your status feed.
 - Need to touch a file you don't own? `check_conflicts` first, then ask the owner in chat.
 - Commit small and often. Never commit `.env`, keys, or secrets.
 
@@ -35,5 +42,5 @@ blocks git — so the moment you see an overlap, coordinate in chat before you e
 ### Your AgentSync tools
 `agentsync_register` · `get_plan` · `set_plan` · `approve_plan` · `list_members` ·
 `list_tasks` · `add_task` · `claim_task` · `release_task` · `complete_task` ·
-`check_conflicts` · `announce_edit` · `post_message`
+`check_conflicts` · `announce_edit` · `post_message` · `read_messages`
 <!-- agentsync:end -->
