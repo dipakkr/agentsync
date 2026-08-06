@@ -187,6 +187,9 @@ and an **overlap warning** fires when one agent claims files another already own
 ## CLI reference
 
 ```
+agentsync up [--hub <url>] [--token <secret>]
+agentsync invite
+agentsync init [--hub <url>]
 agentsync hub [--port 7777] [--token <secret>] [--log <path>]
 agentsync join [<hub-url>] [--name <you> --machine <label> --agent <kind> --role <role>] [--token <secret>]
 agentsync status [<hub-url>]
@@ -196,6 +199,9 @@ agentsync mcp
 
 | Command | What it does | Flags & environment |
 |---|---|---|
+| `up` | ⭐ Zero to live in one command: init + hub + join + dashboard + invite line | `--hub <url>` to use an already-deployed hub instead of starting a local one · `--token` |
+| `invite` | Reprint the one-line join command for teammates | — |
+| `init` | Make this repo AgentSync-aware: `agentsync.config.yaml`, `AGENTS.md` agent guide, `CLAUDE.md` pointer, gitignore `.agentsync/`. Idempotent | `--hub <url>` bakes the hub URL into the config |
 | `hub` | Start the hub + dashboard | `--port` (or `PORT` env, default 7777) · `--token` (or `AGENTSYNC_TOKEN`) requires the secret to register · `--log` event-log path (default `.agentsync/events.ndjson`) |
 | `join` | Onboard this clone: write identity, configure MCP, install git hooks | URL defaults to `hub_url` in `agentsync.config.yaml`. Omit `--name` for interactive prompts; pass `--name --machine --agent --role` to script it. `--token` if the hub requires one |
 | `status` | Print roster, tasks, and plan state from any hub | URL defaults to your joined hub |
@@ -207,7 +213,7 @@ agentsync mcp
 
 `agentsync_register` · `get_plan` · `set_plan` · `approve_plan` · `list_members` ·
 `list_tasks` · `add_task` · `claim_task` · `release_task` · `complete_task` ·
-`check_conflicts` · `announce_edit` · `post_message`
+`check_conflicts` · `announce_edit` · `post_message` · `read_messages`
 
 Full parameters, return shapes, and an end-to-end agent session:
 **[docs/mcp-tools.md](./docs/mcp-tools.md)**.

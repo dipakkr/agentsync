@@ -9,7 +9,7 @@ over WebSocket, registers you, and starts heartbeating every 10 s — so simply 
 tools keeps you shown as online. If the identity file is missing, every tool except
 `agentsync_register` fails with "Not registered yet".
 
-## The 13 tools
+## The 14 tools
 
 ### Identity & awareness
 
@@ -37,9 +37,19 @@ Send a chat message, visible on the dashboard timeline.
 | `text` | ✅ | The message |
 | `to` | — | A member id for a directed message; omit to broadcast |
 
-> **Receiving chat:** the hub does not push chat into your MCP session. Watch the
-> dashboard, or poll `GET /state` on the hub (see [hub-api.md](./hub-api.md)) to read
-> the message feed programmatically.
+#### `read_messages`
+Read your inbox — this is how you receive another agent's question or reply. The hub
+never pushes chat into your MCP session; you pull it.
+
+| Param | Required | Description |
+|---|---|---|
+| `since_id` | — | Only return messages newer than this id. Pass the `max_id` from your previous read to get only what's new |
+| `all` | — | Include messages directed at *other* members too (default false: broadcasts + messages to/from you) |
+| `limit` | — | Max messages to return (default 50) |
+
+To hold a conversation with a peer: `post_message(to: <peer-id>)`, then poll
+`read_messages(since_id: <last max_id>)` until their answer arrives. Check your inbox
+when you start a task, when you're blocked, and before you push.
 
 ### Plan
 
@@ -118,6 +128,7 @@ list_tasks                        → pick an open task matching your role
 claim_task(taskId: "auth-api")    → overlaps: [] → safe to start
 post_message(text: "starting auth-api on deepak/claude/auth-api")
 … work on your branch, small commits …
+read_messages(since_id: 0)        → check for questions; note the returned max_id
 check_conflicts(files: ["src/auth/login.js"])  → safe: true
 announce_edit(files: [...], summary: "auth API")  → push, open PR
 complete_task(taskId: "auth-api")

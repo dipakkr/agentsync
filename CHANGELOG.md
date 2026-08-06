@@ -15,6 +15,9 @@ All notable changes to this project are documented here. The format is based on
 - **`agentsync up`** — one command from a fresh clone to fully live: inits the repo, starts
   (or points at) a hub, sets you up, opens the dashboard, and prints the invite line.
 - **`agentsync invite`** — reprints the one-line command teammates paste to join.
+- **`read_messages` MCP tool** — agents pull their inbox (team broadcasts + messages
+  addressed to them, with a `since_id` cursor) so two agents can hold a conversation;
+  the dashboard gained directed chat.
 - **One-click self-hosting** — `render.yaml` + "Deploy to Render" button, `railway.json` +
   Railway button, and a `Dockerfile` for Fly.io / any container host. Hub honors `PORT` and
   `AGENTSYNC_TOKEN`. (Vercel is not supported — the hub is a stateful WebSocket server.)
@@ -33,10 +36,6 @@ All notable changes to this project are documented here. The format is based on
 - Agent onboarding via `AGENTS.md` / `CLAUDE.md`.
 - Documentation: CLI reference and troubleshooting in the README; `docs/` reference set
   (MCP tools, configuration, hub HTTP/WS API, deployment guide).
-
-### Fixed
-- `AGENTS.md` no longer instructs agents to call `read_messages` — that tool does not
-  exist in the MCP server; chat is pulled via the dashboard or `GET /state`.
 
 ## [0.1.0] — 2026-08-06
 

@@ -7,6 +7,14 @@ just means keeping that file on a disk that survives restarts.
 For a LAN hackathon you don't need any of this: `npx agentsync hub` on one laptop and
 share the printed LAN URL. This page is for hubs that outlive a table.
 
+The repo ships ready-made manifests for the common hosts — `render.yaml` (the "Deploy to
+Render" button), `railway.json`, a `Dockerfile` (Fly.io / any container host), and a
+`Procfile` — see the README's *Host your own hub* section for the one-click paths. This
+page covers the knobs behind them and the DIY setups.
+
+> **Not Vercel.** The hub is a stateful, long-running WebSocket server — serverless
+> platforms can't host it.
+
 ## The three knobs
 
 | Knob | How |
@@ -18,17 +26,23 @@ share the printed LAN URL. This page is for hubs that outlive a table.
 After deploying, commit the public URL as `hub_url` in `agentsync.config.yaml` so
 teammates join with zero arguments, and share the token out-of-band (never commit it).
 
+## Render (one click)
+
+The **Deploy to Render** button in the README uses the bundled `render.yaml`: it
+provisions a web service, generates a strong `AGENTSYNC_TOKEN` for you, and health-checks
+`/health`. Note the free plan sleeps after ~15 min idle — first request after that is a
+cold start.
+
 ## Railway
 
-Railway detects the Node app and injects `PORT` automatically — the hub honors it.
+The bundled `railway.json` sets the start command and `/health` check; Railway injects
+`PORT` automatically and the hub honors it.
 
 1. New project → **Deploy from GitHub repo** (your fork, or a repo containing agentsync).
-2. Set the start command: `node src/cli/index.js hub`
-   (or add a `start` script and let the default `npm start` run it).
-3. Variables: `AGENTSYNC_TOKEN=<secret>` if you want auth.
-4. For durable state, attach a **Volume** (e.g. mounted at `/data`) and set the start
+2. Variables: `AGENTSYNC_TOKEN=<secret>` if you want auth.
+3. For durable state, attach a **Volume** (e.g. mounted at `/data`) and override the start
    command to `node src/cli/index.js hub --log /data/events.ndjson`.
-5. **Settings → Networking → Generate Domain**, then commit it as `hub_url`.
+4. **Settings → Networking → Generate Domain**, then commit it as `hub_url`.
 
 Members join with the HTTPS URL; the client upgrades it to `wss://` automatically:
 
@@ -74,23 +88,17 @@ location / {
 }
 ```
 
-## Docker
+## Docker / Fly.io
 
-```dockerfile
-FROM node:22-slim
-WORKDIR /app
-COPY . .
-RUN npm ci --omit=dev
-EXPOSE 7777
-VOLUME /data
-CMD ["node", "src/cli/index.js", "hub", "--log", "/data/events.ndjson"]
-```
+The repo's `Dockerfile` builds a ready-to-run hub image (Node 22 alpine, `PORT` honored):
 
 ```bash
 docker build -t agentsync-hub .
-docker run -d -p 7777:7777 -v agentsync-data:/data -e AGENTSYNC_TOKEN=change-me agentsync-hub
+docker run -d -p 7777:7777 -v agentsync-data:/data -e AGENTSYNC_TOKEN=change-me \
+  agentsync-hub node src/cli/index.js hub --log /data/events.ndjson
 ```
 
+On Fly.io it's just `fly launch && fly deploy` (add a volume + `--log` for durable state).
 Health-check with `GET /health`.
 
 ## Operations notes
