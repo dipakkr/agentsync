@@ -68,14 +68,35 @@ async function setupMember(url, token) {
   saveIdentity({ member, hubUrl: url, token });
   writeMcpConfig(url, token, agent);
   installHooks();
+  writeAgentContext(); // ensure AGENTS.md + CLAUDE.md pointer exist locally even if the repo never committed them
   try { const cl = new HubClient({ url, token, member }); await cl.connect(); await cl.register(); cl.postMessage(`👋 ${member.id} joined`); setTimeout(() => cl.close(), 400); } catch {}
   return member;
 }
 
 function printInvite(url, token) {
   const cmd = `npx github:dipakkr/agentsync join ${url}${token ? ` --token ${token}` : ""} --name YOU --machine THIS --agent claude`;
-  say(`\n  ${c.b}Invite teammates${c.reset} — share this line (change YOU/THIS/agent):`);
-  say(`    ${c.cy}${cmd}${c.reset}`);
+  // A paste-ready brief, not a bare command: the teammate drops this whole block into
+  // their coding agent and it self-onboards — no human needed to explain what AgentSync is.
+  const brief = [
+    `You're joining an AgentSync-coordinated repo — a shared hub that keeps humans and AI`,
+    `coding agents aware of who is editing what, so parallel agents never collide on the same`,
+    `files. Onboard yourself now:`,
+    ``,
+    `1. Run this in the repo root (replace YOU / THIS with your name and this machine's label):`,
+    `   ${cmd}`,
+    `2. It writes .mcp.json (the AgentSync tools), git hooks, your identity, and AGENTS.md, then`,
+    `   puts you on the dashboard: ${url}`,
+    `   Then RESTART this agent session — the AgentSync MCP tools only load at startup.`,
+    `3. Read AGENTS.md in the repo root — those are your rules of engagement.`,
+    `4. Before writing code: get_plan (don't code until a plan is approved) -> claim_task (locks`,
+    `   your file scope, warns on overlap). While working: read_messages to hear teammates and`,
+    `   post_message to keep them posted; check_conflicts before you push. Push to your OWN`,
+    `   branch, never main.`,
+  ].join("\n");
+  say(`\n  ${c.b}Invite teammates${c.reset} — paste this whole block to a teammate; they paste it into their coding agent:`);
+  say(`  ${c.dim}${"─".repeat(74)}${c.reset}`);
+  say(brief);
+  say(`  ${c.dim}${"─".repeat(74)}${c.reset}`);
 }
 
 async function cmdJoin() {
@@ -209,6 +230,30 @@ async function cmdStatus() {
 
 function cmdWhoami() { const id = loadIdentity(); say(id ? JSON.stringify(id.member, null, 2) : "Not joined. Run: agentsync join <url>"); }
 
+// Drop the agent context into a repo: AGENTS.md (the usage guide) + a CLAUDE.md pointer.
+// Idempotent. Called by init/up AND by join — so a teammate who joins always has the
+// context locally even if the repo never committed AGENTS.md (it is often gitignored).
+function writeAgentContext() {
+  let wrote = [], skipped = [];
+  const guide = readFileSync(join(PKG_ROOT, "templates", "AGENTS.md"), "utf8");
+  const agentsPath = join(CWD, "AGENTS.md");
+  if (!existsSync(agentsPath)) {
+    writeFileSync(agentsPath, guide); wrote.push("AGENTS.md");
+  } else {
+    const cur = readFileSync(agentsPath, "utf8");
+    if (cur.includes("agentsync:begin")) skipped.push("AGENTS.md (already has AgentSync section)");
+    else { writeFileSync(agentsPath, cur.trimEnd() + "\n\n" + guide); wrote.push("AGENTS.md (appended)"); }
+  }
+  // Claude Code auto-loads CLAUDE.md; keep the guide in AGENTS.md and point at it from there.
+  const claudePath = join(CWD, "CLAUDE.md");
+  const pointer = "See [AGENTS.md](./AGENTS.md) for how to work in this repo through AgentSync.";
+  if (!existsSync(claudePath)) { writeFileSync(claudePath, pointer + "\n"); wrote.push("CLAUDE.md"); }
+  else if (!readFileSync(claudePath, "utf8").includes("AGENTS.md")) {
+    writeFileSync(claudePath, readFileSync(claudePath, "utf8").trimEnd() + "\n\n" + pointer + "\n"); wrote.push("CLAUDE.md (appended)");
+  } else skipped.push("CLAUDE.md");
+  return { wrote, skipped };
+}
+
 // Make ANY project repo AgentSync-aware: drop in the config + the agent usage guide
 // (so coding agents that open this repo know how to use the tool) + gitignore.
 // Returns {wrote, skipped, project}; used by both `init` (prints) and `up` (silent).
@@ -223,24 +268,10 @@ function ensureProjectFiles(hub) {
     writeFileSync(CONFIG_PATH, tpl); wrote.push("agentsync.config.yaml");
   } else skipped.push("agentsync.config.yaml");
 
-  // 2) AGENTS.md — the "how to use this tool" context for any agent in this repo
-  const guide = readFileSync(join(PKG_ROOT, "templates", "AGENTS.md"), "utf8");
-  const agentsPath = join(CWD, "AGENTS.md");
-  if (!existsSync(agentsPath)) {
-    writeFileSync(agentsPath, guide); wrote.push("AGENTS.md");
-  } else {
-    const cur = readFileSync(agentsPath, "utf8");
-    if (cur.includes("agentsync:begin")) skipped.push("AGENTS.md (already has AgentSync section)");
-    else { writeFileSync(agentsPath, cur.trimEnd() + "\n\n" + guide); wrote.push("AGENTS.md (appended)"); }
-  }
-
-  // 3) CLAUDE.md pointer (Claude Code reads CLAUDE.md; keep the guide in AGENTS.md)
-  const claudePath = join(CWD, "CLAUDE.md");
-  const pointer = "See [AGENTS.md](./AGENTS.md) for how to work in this repo through AgentSync.";
-  if (!existsSync(claudePath)) { writeFileSync(claudePath, pointer + "\n"); wrote.push("CLAUDE.md"); }
-  else if (!readFileSync(claudePath, "utf8").includes("AGENTS.md")) {
-    writeFileSync(claudePath, readFileSync(claudePath, "utf8").trimEnd() + "\n\n" + pointer + "\n"); wrote.push("CLAUDE.md (appended)");
-  } else skipped.push("CLAUDE.md");
+  // 2) + 3) AGENTS.md + CLAUDE.md pointer — the "how to use this tool" context so any
+  // coding agent that opens this repo knows what AgentSync is and what to do.
+  const ctx = writeAgentContext();
+  wrote.push(...ctx.wrote); skipped.push(...ctx.skipped);
 
   // 4) gitignore .agentsync/
   const giPath = join(CWD, ".gitignore");
