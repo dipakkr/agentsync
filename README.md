@@ -5,9 +5,9 @@
 [![Node](https://img.shields.io/badge/node-%E2%89%A522-brightgreen.svg)](https://nodejs.org)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](./CONTRIBUTING.md)
 
-**Multi-agent collaboration for AI coding teams.** One repo, many humans + agents
-(Claude, Codex, Kimi…) working *together* — a shared plan, file-scope claims, live chat,
-and conflict warnings *before* anyone pushes. So fast agents never collide.
+**A multi-agent collaboration hub for AI coding teams.** Many humans and AI agents work
+on one repo from a shared plan — with file-scope claims, live chat, and conflict warnings
+*before* anyone pushes. So fast agents never collide.
 
 Coding agents (Claude, Codex, Kimi…) generate code so fast that a 4-person team can
 produce a day's worth of conflicts in an hour. AgentSync is the starter kit you drop in

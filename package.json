@@ -1,7 +1,7 @@
 {
   "name": "agentsync",
   "version": "0.1.0",
-  "description": "AgentSync — multi-agent collaboration for AI coding teams. One repo, many humans + AI agents (Claude, Codex, Kimi…) working together with a shared plan, file-scope claims, live chat, and MCP-native conflict warnings — so fast agents never collide.",
+  "description": "A multi-agent collaboration hub for AI coding teams. Many humans and AI agents work on one repo from a shared plan — with file-scope claims, live chat, and MCP-native conflict warnings that keep fast agents from colliding. Zero merge conflicts.",
   "type": "module",
   "bin": {
     "agentsync": "src/cli/index.js"
