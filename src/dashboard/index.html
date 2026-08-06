@@ -104,7 +104,8 @@ const time = (ts) => new Date(ts).toLocaleTimeString([], {hour:"2-digit", minute
 
 let ws;
 function connect() {
-  ws = new WebSocket(`ws://${location.host}/ws`);
+  const wsProto = location.protocol === "https:" ? "wss:" : "ws:";
+  ws = new WebSocket(`${wsProto}//${location.host}/ws`);
   ws.onopen = () => { $("conn").classList.add("on"); $("connlbl").textContent = "live"; };
   ws.onclose = () => { $("conn").classList.remove("on"); $("connlbl").textContent = "reconnecting…"; setTimeout(connect, 1500); };
   ws.onmessage = (e) => onMsg(JSON.parse(e.data));
