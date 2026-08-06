@@ -6,7 +6,18 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Fixed
+- **Dashboard live updates.** The hub now broadcasts to every connected socket, not just
+  registered agents — view-only clients like the dashboard update in real time without a
+  manual refresh. Covered by a regression test.
+
 ### Added
+- **`agentsync init`** — make any project repo AgentSync-aware in one command: drops in
+  `agentsync.config.yaml` and an `AGENTS.md` guide (the "how to use AgentSync" context
+  agents read automatically), a `CLAUDE.md` pointer, and gitignores `.agentsync/`.
+  Idempotent; appends to an existing `AGENTS.md` instead of clobbering it.
+
+### Added (initial)
 - Event-sourced coordination hub (HTTP + WebSocket) with presence, task board, and chat.
 - File-scope claim/lock with advisory overlap detection.
 - Pre-push announce and pre-commit protected-path guard (git hooks).

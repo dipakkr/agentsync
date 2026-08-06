@@ -36,7 +36,9 @@ export function startHub({ port = 7777, token = "", logPath }) {
 
   function broadcast(msg) {
     const data = JSON.stringify(msg);
-    for (const ws of clients.keys()) {
+    // Broadcast to EVERY connected socket — including view-only clients like the
+    // dashboard that never call `register` (they must still get live updates).
+    for (const ws of wss.clients) {
       if (ws.readyState === ws.OPEN) ws.send(data);
     }
   }

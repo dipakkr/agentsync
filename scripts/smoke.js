@@ -52,6 +52,17 @@ try {
   const safe = await be.checkConflicts(["src/auth/routes.ts"]); // only be owns src/auth/**
   assert(safe.overlaps.length === 0, "check_conflicts is clean when no one else owns the files");
 
+  // regression: a view-only socket (like the dashboard) never registers, but MUST still
+  // receive live broadcasts — otherwise the dashboard freezes until refresh.
+  const viewer = new WebSocket(`ws://localhost:${PORT}/ws`);
+  let viewerEvents = 0;
+  await new Promise((r) => viewer.addEventListener("open", r));
+  viewer.addEventListener("message", (e) => { if (JSON.parse(e.data).type === "event") viewerEvents++; });
+  lead.postMessage("regression: view-only clients must get this");
+  await new Promise((r) => setTimeout(r, 300));
+  assert(viewerEvents > 0, "view-only socket (dashboard) receives live broadcasts without registering");
+  viewer.close();
+
   for (const c of [lead, be, fe]) c.close();
 } catch (e) {
   console.log("  ✗ threw:", e.message);

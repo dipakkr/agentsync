@@ -15,6 +15,7 @@
   "files": [
     "src",
     "hooks",
+    "templates",
     "agentsync.config.yaml",
     "AGENTS.md",
     "README.md",

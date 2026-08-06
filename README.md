@@ -49,6 +49,22 @@ Only hard dependencies: **Node ≥ 22 and git** (which every participant already
 
 ## Quickstart
 
+### 0. Add AgentSync to your project (once, by whoever owns the repo)
+
+Run this **inside the repo you're building** — it makes the repo AgentSync-aware so any
+agent that opens it knows how to use the tool:
+
+```bash
+npx agentsync init --hub http://192.168.1.20:7777
+#   ✓ AgentSync initialized
+#   created: agentsync.config.yaml, AGENTS.md, CLAUDE.md, .gitignore (+.agentsync/)
+```
+
+`init` drops in the config plus an **`AGENTS.md` guide** (the "how to use AgentSync"
+context your Claude/Codex agents read automatically). Commit these files and the whole
+team shares one setup. It's idempotent and won't clobber an existing `AGENTS.md` — it
+appends its section.
+
 ### 1. One person starts the hub
 
 ```bash

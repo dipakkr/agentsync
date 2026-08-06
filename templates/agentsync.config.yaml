@@ -1,0 +1,32 @@
+# AgentSync project config — committed, the team's shared "rules of engagement".
+# Per-person secrets (token, identity) live in the gitignored .agentsync/ folder, not here.
+
+project: __PROJECT__
+
+# For a persistent team, put the hub's URL here so `agentsync join` is zero-argument.
+# Leave blank for an ephemeral/hackathon hub and pass --hub on join.
+hub_url: "__HUB__"
+
+roles:
+  - { name: orchestrator, sandbox: read-write }   # drafts the plan, assigns tasks
+  - { name: coder,        sandbox: read-write }
+  - { name: frontend,     sandbox: read-write }
+  - { name: backend,      sandbox: read-write }
+  - { name: reviewer,     sandbox: read-only }
+  - { name: planner,      sandbox: read-only }
+
+# Files everyone touches — claiming a task that includes these warns harder. Serialize them.
+hot_files:
+  - package.json
+  - package-lock.json
+  - "**/schema.*"
+
+# A commit that stages these is blocked by the pre-commit hook.
+protected_paths:
+  - .env
+  - "**/*.key"
+  - "**/secrets.*"
+
+git:
+  branch_template: "{person}/{agent}/{slug}"
+  protected_branch: main

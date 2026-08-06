@@ -2,7 +2,7 @@
 // agentsync CLI — one binary for the hub host, humans joining, and the git hooks.
 
 import { fileURLToPath } from "node:url";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, resolve, basename } from "node:path";
 import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync, chmodSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { createInterface } from "node:readline/promises";
@@ -153,6 +153,55 @@ async function cmdStatus() {
 
 function cmdWhoami() { const id = loadIdentity(); say(id ? JSON.stringify(id.member, null, 2) : "Not joined. Run: agentsync join <url>"); }
 
+// Make ANY project repo AgentSync-aware: drop in the config + the agent usage guide
+// (so coding agents that open this repo know how to use the tool) + gitignore + hooks.
+function cmdInit() {
+  const hub = flag("hub", "");
+  const project = flag("project", basename(CWD));
+  let wrote = [], skipped = [];
+
+  // 1) agentsync.config.yaml
+  if (!existsSync(CONFIG_PATH)) {
+    const tpl = readFileSync(join(PKG_ROOT, "templates", "agentsync.config.yaml"), "utf8")
+      .replace("__PROJECT__", project).replace("__HUB__", hub);
+    writeFileSync(CONFIG_PATH, tpl); wrote.push("agentsync.config.yaml");
+  } else skipped.push("agentsync.config.yaml");
+
+  // 2) AGENTS.md — the "how to use this tool" context for any agent in this repo
+  const guide = readFileSync(join(PKG_ROOT, "templates", "AGENTS.md"), "utf8");
+  const agentsPath = join(CWD, "AGENTS.md");
+  if (!existsSync(agentsPath)) {
+    writeFileSync(agentsPath, guide); wrote.push("AGENTS.md");
+  } else {
+    const cur = readFileSync(agentsPath, "utf8");
+    if (cur.includes("agentsync:begin")) skipped.push("AGENTS.md (already has AgentSync section)");
+    else { writeFileSync(agentsPath, cur.trimEnd() + "\n\n" + guide); wrote.push("AGENTS.md (appended)"); }
+  }
+
+  // 3) CLAUDE.md pointer (Claude Code reads CLAUDE.md; keep the guide in AGENTS.md)
+  const claudePath = join(CWD, "CLAUDE.md");
+  const pointer = "See [AGENTS.md](./AGENTS.md) for how to work in this repo through AgentSync.";
+  if (!existsSync(claudePath)) { writeFileSync(claudePath, pointer + "\n"); wrote.push("CLAUDE.md"); }
+  else if (!readFileSync(claudePath, "utf8").includes("AGENTS.md")) {
+    writeFileSync(claudePath, readFileSync(claudePath, "utf8").trimEnd() + "\n\n" + pointer + "\n"); wrote.push("CLAUDE.md (appended)");
+  } else skipped.push("CLAUDE.md");
+
+  // 4) gitignore .agentsync/
+  const giPath = join(CWD, ".gitignore");
+  const gi = existsSync(giPath) ? readFileSync(giPath, "utf8") : "";
+  if (!gi.split("\n").some((l) => l.trim() === ".agentsync/")) {
+    writeFileSync(giPath, (gi ? gi.trimEnd() + "\n" : "") + ".agentsync/\n"); wrote.push(".gitignore (+.agentsync/)");
+  }
+
+  say(`\n  ${c.g}✓ AgentSync initialized in ${c.b}${project}${c.reset}`);
+  if (wrote.length) say(`  ${c.dim}created: ${wrote.join(", ")}${c.reset}`);
+  if (skipped.length) say(`  ${c.dim}kept:    ${skipped.join(", ")}${c.reset}`);
+  say(`\n  Next:`);
+  say(`    1. ${c.cy}commit these files${c.reset} so the whole team shares the same setup`);
+  say(`    2. each teammate: ${c.cy}agentsync join ${hub || "<hub-url>"} --token <t> --name <you> --machine <m> --agent <claude|codex>${c.reset}`);
+  say(`    3. open your coding agent here — it reads AGENTS.md and connects itself\n`);
+}
+
 // ---- helpers ----------------------------------------------------------------
 function current(fallback) { try { return execSync("git branch --show-current", { cwd: CWD }).toString().trim() || fallback; } catch { return fallback; } }
 function lanIP() {
@@ -166,6 +215,7 @@ function fail(msg) { console.error(msg); process.exit(1); }
 
 const HELP = `agentsync — coordination hub for teams of humans + AI coding agents
 
+  agentsync init [--hub <url>]                make THIS repo AgentSync-aware (config + AGENTS.md context)
   agentsync hub [--port 7777] [--token …]     start the hub + dashboard
   agentsync join <url> [--token …]            join from a clone (onboarding, MCP config, hooks)
   agentsync status [url]                       print roster / tasks / plan
@@ -174,7 +224,7 @@ const HELP = `agentsync — coordination hub for teams of humans + AI coding age
   agentsync announce | guard-commit           internal (git hooks)`;
 
 const table = {
-  hub: cmdHub, join: cmdJoin, announce: cmdAnnounce, "guard-commit": cmdGuardCommit,
+  init: cmdInit, hub: cmdHub, join: cmdJoin, announce: cmdAnnounce, "guard-commit": cmdGuardCommit,
   status: cmdStatus, whoami: cmdWhoami,
   mcp: async () => { await import("../mcp/server.js"); },
 };
