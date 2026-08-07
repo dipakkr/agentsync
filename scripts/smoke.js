@@ -4,6 +4,7 @@ import { startHub } from "../src/hub/server.js";
 import { HubClient } from "../src/lib/client.js";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { rmSync } from "node:fs";
 
 const PORT = 7788;
 const url = `http://localhost:${PORT}`;
@@ -14,13 +15,16 @@ function assert(cond, msg) {
 }
 const mk = (id, person, machine, agentKind, role) => new HubClient({ url, member: { id, person, machine, agentKind, role } });
 
-const hub = startHub({ port: PORT, logPath: join(tmpdir(), `agentsync-smoke-${PORT}.ndjson`) });
+const LOG = join(tmpdir(), `agentsync-smoke-${PORT}.ndjson`);
+rmSync(LOG, { force: true }); // hermetic: never inherit a previous run's roster/tasks/messages
+const hub = startHub({ port: PORT, logPath: LOG });
 try {
   const lead = mk("deepak.mac-a.claude", "deepak", "mac-a", "claude", "orchestrator");
   const be = mk("deepak.mac-a.codex", "deepak", "mac-a", "codex", "backend");
   const fe = mk("naman.laptop.claude", "naman", "laptop", "claude", "frontend");
   for (const c of [lead, be, fe]) { await c.connect(); await c.register(); }
 
+  await new Promise((r) => setTimeout(r, 100)); // let each member.register broadcast reach the others
   assert(lead.state.members.length === 3, "three members registered");
 
   lead.setPlan("auth feature"); lead.approvePlan();
@@ -62,6 +66,28 @@ try {
   await new Promise((r) => setTimeout(r, 300));
   assert(viewerEvents > 0, "view-only socket (dashboard) receives live broadcasts without registering");
   viewer.close();
+
+  // regression: a dropped socket must self-heal — reconnect, re-register, keep its buffered
+  // chat, and RE-ASSERT its claims. Otherwise a hub blip/redeploy silently strips an agent's
+  // file-scope locks (the sweeper auto-releases after 90s) while the agent keeps editing.
+  const msgsBefore = be.state.messages.length; // be owns "auth-api" at this point
+  be.ws.close(); // hard drop (NOT be.close(), which is an intentional shutdown)
+
+  // while be is offline, release its task back to the board — exactly what the sweeper does
+  const raw = new WebSocket(`ws://localhost:${PORT}/ws`);
+  await new Promise((r) => raw.addEventListener("open", r));
+  raw.send(JSON.stringify({ type: "register", member: { id: "ops.hub.tool", person: "ops", machine: "hub", agentKind: "tool" } }));
+  await new Promise((r) => setTimeout(r, 60));
+  raw.send(JSON.stringify({ type: "task.release", taskId: "auth-api" }));
+  await new Promise((r) => setTimeout(r, 60));
+  raw.close();
+
+  await new Promise((r) => setTimeout(r, 1500)); // let be reconnect (backoff ~0.5s) + reclaim
+  assert(be.ws.readyState === 1, "client reconnects after an unexpected socket drop");
+  assert(be.state.messages.length >= msgsBefore, "buffered chat survives a reconnect (no message loss)");
+  const reclaimed = be.state.tasks.find((t) => t.id === "auth-api");
+  assert(reclaimed?.status === "claimed" && reclaimed.owner === "deepak.mac-a.codex",
+    "client re-asserts its claim after a disconnect released it (locks don't silently vanish)");
 
   for (const c of [lead, be, fe]) c.close();
 } catch (e) {
