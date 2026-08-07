@@ -12,6 +12,10 @@ All notable changes to this project are documented here. The format is based on
   manual refresh. Covered by a regression test.
 
 ### Added
+- **Durable hub state via a mounted volume.** The hub reads its data directory from
+  `AGENTSYNC_DATA` (default: local `.agentsync/`), so pointing it at a mounted volume on a
+  deployed host makes chat/tasks/plan/roster survive redeploys and idle-sleep instead of
+  resetting. `agentsync hub` prints the event-log path and flags it as ephemeral when unset.
 - **`agentsync up`** — one command from a fresh clone to fully live: inits the repo, starts
   (or points at) a hub, sets you up, opens the dashboard, and prints the invite line.
 - **`agentsync invite`** — reprints the one-line command teammates paste to join.
