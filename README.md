@@ -157,6 +157,23 @@ drops onto any persistent host:
 After deploying, put the URL in your project's `agentsync.config.yaml` → `hub_url`, and
 everyone's onboarding becomes just `agentsync join` (no URL needed).
 
+### Persist state across redeploys
+
+By default the event log (chat, tasks, plan, roster) lives in the container's filesystem,
+so it's **wiped on every redeploy or idle-sleep**. To keep history, mount a persistent
+volume and point `AGENTSYNC_DATA` at it — the hub writes `events.ndjson` there and replays
+it on boot:
+
+- **Railway** — add a Volume to the service, mount it at `/data`, and set env
+  `AGENTSYNC_DATA=/data`. Always-on + durable.
+- **Fly.io** — `fly volumes create agentsync_data --size 1`, mount at `/data` in `fly.toml`,
+  set `AGENTSYNC_DATA=/data`.
+- **Render** — a persistent disk requires a **paid** instance (the free tier is always
+  ephemeral); add a disk mounted at `/data` and set `AGENTSYNC_DATA=/data`.
+
+`agentsync hub` prints the resolved event-log path on startup and flags it as *ephemeral*
+when `AGENTSYNC_DATA` is unset, so you can see at a glance whether the hub is durable.
+
 > **Not Vercel.** The hub is a stateful, long-running WebSocket server — Vercel's serverless
 > model can't host it. Use Render / Railway / Fly (above), or Cloudflare Durable Objects.
 

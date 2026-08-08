@@ -36,13 +36,17 @@ function loadConfig() { return existsSync(CONFIG_PATH) ? parseYaml(readFileSync(
 async function cmdHub() {
   const port = Number(flag("port", process.env.PORT || 7777));
   const token = flag("token", process.env.AGENTSYNC_TOKEN || "");
-  const logPath = flag("log", join(CWD, ".agentsync", "events.ndjson"));
+  // Persist the event log under AGENTSYNC_DATA (point it at a mounted volume on a
+  // deployed hub) so chat/tasks/plan survive a redeploy; default to the local repo.
+  const dir = process.env.AGENTSYNC_DATA || join(CWD, ".agentsync");
+  const logPath = flag("log", join(dir, "events.ndjson"));
   startHub({ port, token, logPath });
   const lan = lanIP();
   say(`\n  ${c.b}${c.cy}⚡ AgentSync hub is live${c.reset}\n`);
   say(`  Dashboard   ${c.g}http://localhost:${port}${c.reset}${lan ? `  ·  http://${lan}:${port}` : ""}`);
   say(`  Hub URL     ${c.g}http://${lan || "localhost"}:${port}${c.reset}`);
   say(`  Token       ${token ? c.y + token + c.reset : c.dim + "(none — open)" + c.reset}`);
+  say(`  Event log   ${c.g}${logPath}${c.reset}${process.env.AGENTSYNC_DATA ? "" : `${c.dim}  (ephemeral — set AGENTSYNC_DATA to a mounted volume to persist)${c.reset}`}`);
   say(`\n  Teammates join with:`);
   say(`    ${c.dim}npx agentsync join http://${lan || "localhost"}:${port}${token ? " --token " + token : ""}${c.reset}\n`);
   process.on("SIGINT", () => process.exit(0));
@@ -124,7 +128,8 @@ async function cmdUp() {
     if (!token) token = randomBytes(6).toString("hex");
     const lan = lanIP();
     hubUrl = `http://${lan || "localhost"}:${port}`;
-    localHub = startHub({ port, token, logPath: join(CWD, ".agentsync", "events.ndjson") });
+    const dir = process.env.AGENTSYNC_DATA || join(CWD, ".agentsync");
+    localHub = startHub({ port, token, logPath: join(dir, "events.ndjson") });
     say(`\n  ${c.b}${c.cy}⚡ Hub started${c.reset} on ${c.g}${hubUrl}${c.reset} ${c.dim}(token ${token})${c.reset}`);
   } else {
     say(`\n  ${c.b}Using hub${c.reset} ${c.g}${hubUrl}${c.reset}`);
