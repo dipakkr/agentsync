@@ -21,7 +21,7 @@ page covers the knobs behind them and the DIY setups.
 |---|---|
 | Port | `--port` or the `PORT` env var (default 7777) — most PaaS platforms set `PORT` for you |
 | Auth | `--token <secret>` or `AGENTSYNC_TOKEN` — members must then join with `--token` |
-| Event log | `--log <path>` (default `.agentsync/events.ndjson`) — point it at persistent storage |
+| Data dir | `AGENTSYNC_DATA=<dir>` (default `.agentsync/`) — one event log per project; point it at a mounted volume to persist |
 
 After deploying, commit the public URL as `hub_url` in `agentsync.config.yaml` so
 teammates join with zero arguments, and share the token out-of-band (never commit it).
@@ -40,8 +40,8 @@ The bundled `railway.json` sets the start command and `/health` check; Railway i
 
 1. New project → **Deploy from GitHub repo** (your fork, or a repo containing agentsync).
 2. Variables: `AGENTSYNC_TOKEN=<secret>` if you want auth.
-3. For durable state, attach a **Volume** (e.g. mounted at `/data`) and override the start
-   command to `node src/cli/index.js hub --log /data/events.ndjson`.
+3. For durable state, attach a **Volume** (e.g. mounted at `/data`) and set env
+   `AGENTSYNC_DATA=/data`.
 4. **Settings → Networking → Generate Domain**, then commit it as `hub_url`.
 
 Members join with the HTTPS URL; the client upgrades it to `wss://` automatically:
@@ -60,8 +60,9 @@ After=network.target
 
 [Service]
 WorkingDirectory=/opt/agentsync
-ExecStart=/usr/bin/node src/cli/index.js hub --port 7777 --log /var/lib/agentsync/events.ndjson
+ExecStart=/usr/bin/node src/cli/index.js hub --port 7777
 Environment=AGENTSYNC_TOKEN=change-me
+Environment=AGENTSYNC_DATA=/var/lib/agentsync
 Restart=on-failure
 
 [Install]
@@ -94,8 +95,9 @@ The repo's `Dockerfile` builds a ready-to-run hub image (Node 22 alpine, `PORT` 
 
 ```bash
 docker build -t agentsync-hub .
-docker run -d -p 7777:7777 -v agentsync-data:/data -e AGENTSYNC_TOKEN=change-me \
-  agentsync-hub node src/cli/index.js hub --log /data/events.ndjson
+docker run -d -p 7777:7777 -v agentsync-data:/data \
+  -e AGENTSYNC_TOKEN=change-me -e AGENTSYNC_DATA=/data \
+  agentsync-hub node src/cli/index.js hub
 ```
 
 On Fly.io it's just `fly launch && fly deploy` (add a volume + `--log` for durable state).

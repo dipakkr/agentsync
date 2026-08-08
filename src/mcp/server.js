@@ -27,7 +27,8 @@ async function hub() {
   if (!id) throw new Error("Not registered yet. Call agentsync_register with your person, machine and agent first.");
   const url = process.env.AGENTSYNC_HUB || id.hubUrl;
   if (!url) throw new Error("No hub URL. Set AGENTSYNC_HUB or run `agentsync join <url>`.");
-  client = new HubClient({ url, token: process.env.AGENTSYNC_TOKEN || id.token || "", member: id.member });
+  const project = process.env.AGENTSYNC_PROJECT || id.project || "default";
+  client = new HubClient({ url, token: process.env.AGENTSYNC_TOKEN || id.token || "", member: id.member, project });
   await client.connect();
   await client.register();
   return client;
@@ -50,7 +51,7 @@ const TOOLS = {
         id: `${a.person}.${a.machine}.${a.agent}`.toLowerCase().replace(/\s+/g, "-"),
         person: a.person, machine: a.machine, agentKind: a.agent, role: a.role || "coder",
       };
-      const id = { ...existing, member, hubUrl: process.env.AGENTSYNC_HUB || existing.hubUrl || "http://localhost:7777", token: process.env.AGENTSYNC_TOKEN || existing.token || "" };
+      const id = { ...existing, member, hubUrl: process.env.AGENTSYNC_HUB || existing.hubUrl || "http://localhost:7777", token: process.env.AGENTSYNC_TOKEN || existing.token || "", project: process.env.AGENTSYNC_PROJECT || existing.project || "default" };
       saveIdentity(id);
       client = null; // force reconnect with new identity
       const c = await hub();

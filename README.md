@@ -161,8 +161,9 @@ everyone's onboarding becomes just `agentsync join` (no URL needed).
 
 By default the event log (chat, tasks, plan, roster) lives in the container's filesystem,
 so it's **wiped on every redeploy or idle-sleep**. To keep history, mount a persistent
-volume and point `AGENTSYNC_DATA` at it — the hub writes `events.ndjson` there and replays
-it on boot:
+volume and point `AGENTSYNC_DATA` at it — the hub writes one event log per project there
+(`events.ndjson` for the `default` project, `project-<name>.ndjson` for others) and replays
+them on boot:
 
 - **Railway** — add a Volume to the service, mount it at `/data`, and set env
   `AGENTSYNC_DATA=/data`. Always-on + durable.
@@ -171,8 +172,21 @@ it on boot:
 - **Render** — a persistent disk requires a **paid** instance (the free tier is always
   ephemeral); add a disk mounted at `/data` and set `AGENTSYNC_DATA=/data`.
 
-`agentsync hub` prints the resolved event-log path on startup and flags it as *ephemeral*
+`agentsync hub` prints the resolved data directory on startup and flags it as *ephemeral*
 when `AGENTSYNC_DATA` is unset, so you can see at a glance whether the hub is durable.
+
+### One hub, many projects
+
+A single deployed hub serves any number of repos, kept isolated by a **project** key. Each
+project gets its own roster, task board, plan, chat, event log, and — importantly — its own
+conflict detection, so the same file globs in two different repos never cross-warn. The key
+comes from `project:` in `agentsync.config.yaml` (defaults to the repo folder name); `join`
+threads it through to the agent's MCP config automatically. View a specific project's
+dashboard at `?project=<name>`.
+
+> **Isolation is organizational, not a security boundary.** The shared `AGENTSYNC_TOKEN`
+> still gates the whole hub, so anyone with it can join any project by naming it. For a hard
+> wall between teams, run separate hubs with separate tokens.
 
 > **Not Vercel.** The hub is a stateful, long-running WebSocket server — Vercel's serverless
 > model can't host it. Use Render / Railway / Fly (above), or Cloudflare Durable Objects.
@@ -219,11 +233,11 @@ agentsync mcp
 | `up` | ⭐ Zero to live in one command: init + hub + join + dashboard + invite line | `--hub <url>` to use an already-deployed hub instead of starting a local one · `--token` |
 | `invite` | Reprint the one-line join command for teammates | — |
 | `init` | Make this repo AgentSync-aware: `agentsync.config.yaml`, `AGENTS.md` agent guide, `CLAUDE.md` pointer, gitignore `.agentsync/`. Idempotent | `--hub <url>` bakes the hub URL into the config |
-| `hub` | Start the hub + dashboard | `--port` (or `PORT` env, default 7777) · `--token` (or `AGENTSYNC_TOKEN`) requires the secret to register · `--log` event-log path (default `.agentsync/events.ndjson`) |
-| `join` | Onboard this clone: write identity, configure MCP, install git hooks | URL defaults to `hub_url` in `agentsync.config.yaml`. Omit `--name` for interactive prompts; pass `--name --machine --agent --role` to script it. `--token` if the hub requires one |
-| `status` | Print roster, tasks, and plan state from any hub | URL defaults to your joined hub |
+| `hub` | Start the hub + dashboard | `--port` (or `PORT` env, default 7777) · `--token` (or `AGENTSYNC_TOKEN`) requires the secret to register · `AGENTSYNC_DATA` env sets the data dir (one event log per project; default `.agentsync/`) |
+| `join` | Onboard this clone: write identity, configure MCP, install git hooks | URL defaults to `hub_url` in `agentsync.config.yaml`. Omit `--name` for interactive prompts; pass `--name --machine --agent --role` to script it. `--token` if the hub requires one · `--project` overrides the config's project |
+| `status` | Print roster, tasks, and plan state for a project | URL defaults to your joined hub · `--project` defaults to your joined project |
 | `whoami` | Show the identity this clone joined as | reads `.agentsync/identity.json` |
-| `mcp` | Run the MCP stdio server (what your agent's `.mcp.json` launches) | `AGENTSYNC_HUB`, `AGENTSYNC_TOKEN` |
+| `mcp` | Run the MCP stdio server (what your agent's `.mcp.json` launches) | `AGENTSYNC_HUB`, `AGENTSYNC_TOKEN`, `AGENTSYNC_PROJECT` |
 | `announce` / `guard-commit` | Internal — called by the installed pre-push / pre-commit hooks | — |
 
 ## MCP tools agents get
@@ -266,7 +280,8 @@ WebSocket protocol are documented in **[docs/hub-api.md](./docs/hub-api.md)**.
 | Member shows offline while their agent is running | Presence flips offline after 30 s without a heartbeat — usually the agent's MCP session ended or the hub URL changed. Their claims auto-release after 90 s offline, so locks never leak. |
 | Claimed a task, got an overlap warning | Not an error — another member's active claim shares files with yours. Coordinate in chat before editing; the hub warns, it never blocks. |
 | Dashboard loads but chat/tools do nothing | You're hitting HTTP while the hub is behind an HTTPS proxy (or vice-versa). Use the exact scheme of the hub URL — `https://…` upgrades to `wss://` automatically. |
-| Hub restarted — is the board gone? | No. State replays from the append-only event log (`.agentsync/events.ndjson` by default, `--log` to relocate). Delete that file for a truly fresh hub. |
+| Hub restarted — is the board gone? | Only if the hub is ephemeral. State replays from the per-project event logs in the data dir (`.agentsync/` by default; set `AGENTSYNC_DATA` to a mounted volume to persist). Delete a project's log file for a fresh board. |
+| Two repos on one hub see each other's tasks/chat | They're using the same `project`. Set a distinct `project:` in each repo's `agentsync.config.yaml` (defaults to the folder name) and re-`join`. |
 
 ## Roadmap
 

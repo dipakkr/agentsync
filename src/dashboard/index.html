@@ -62,6 +62,7 @@
 <body>
 <header>
   <h1>⚡ AgentSync</h1>
+  <span class="badge" id="projlbl"></span>
   <span class="badge"><span id="conn" class="dot"></span> <span id="connlbl">connecting…</span></span>
   <span class="badge" id="onlinecount">0 online</span>
 </header>
@@ -104,11 +105,19 @@ const state = { members:[], tasks:[], plan:null, messages:[] };
 const $ = (id) => document.getElementById(id);
 const time = (ts) => new Date(ts).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
 
+// One hub serves many projects; this dashboard views one, chosen by ?project= (default "default").
+const PROJECT = (new URLSearchParams(location.search).get("project") || "default").slice(0, 64);
+$("projlbl").textContent = "project: " + PROJECT;
+document.title = `AgentSync · ${PROJECT}`;
+
 let ws;
 function connect() {
   const wsProto = location.protocol === "https:" ? "wss:" : "ws:";
   ws = new WebSocket(`${wsProto}//${location.host}/ws`);
-  ws.onopen = () => { $("conn").classList.add("on"); $("connlbl").textContent = "live"; };
+  ws.onopen = () => {
+    $("conn").classList.add("on"); $("connlbl").textContent = "live";
+    ws.send(JSON.stringify({ type:"watch", project: PROJECT })); // subscribe to this project's events
+  };
   ws.onclose = () => { $("conn").classList.remove("on"); $("connlbl").textContent = "reconnecting…"; setTimeout(connect, 1500); };
   ws.onmessage = (e) => onMsg(JSON.parse(e.data));
 }

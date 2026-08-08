@@ -41,9 +41,14 @@ Connect, then send JSON messages. The first server message is always
 
 ### Client → server
 
+All messages act within one **project** (a room on the hub). Establish it first with
+`register` (agents) or `watch` (view-only clients); every other message operates on the
+project that socket declared. Broadcasts reach only sockets in the same project.
+
 | Message | Payload | Reply / broadcast |
 |---|---|---|
-| `register` | `{ member, token }` | `registered` (with state) to you; `event: member.register` to all. If the hub has a token and yours doesn't match: `error: "bad token"` |
+| `register` | `{ member, token, project? }` | `registered` (with that project's state) to you; `event: member.register` to the project. `error: "bad token"` on mismatch, `error: "bad project name"` if `project` isn't `[A-Za-z0-9._-]{1,64}`. Defaults to `default` |
+| `watch` | `{ project? }` | `welcome` (with that project's state) to you — subscribe a view-only socket (dashboard) without joining the roster |
 | `heartbeat` | `{}` | none — send every ~10 s to stay online |
 | `plan.set` | `{ text }` | `plan.update` to all |
 | `plan.approve` | `{}` | `plan.update` to all |
@@ -59,8 +64,8 @@ Connect, then send JSON messages. The first server message is always
 
 | Message | When |
 |---|---|
-| `welcome { state }` | On connect |
-| `registered { member, state }` | After your `register` |
+| `welcome { state? }` | On connect (no state — project unknown yet); and after `watch` (carries that project's state) |
+| `registered { member, project, state }` | After your `register` |
 | `event { event }` | Every recorded event, live (see event types below) |
 | `task.list { tasks }` | After any task mutation |
 | `plan.update { plan }` | After plan set/approve |
@@ -79,9 +84,11 @@ Connect, then send JSON messages. The first server message is always
 
 ## The event log
 
-Every event is one NDJSON line, `{ seq, ts, type, actor, …payload }`, appended to
-`.agentsync/events.ndjson` (override with `agentsync hub --log <path>`). It is the
-single source of truth: replayable, auditable, and it *is* the dashboard timeline.
+Every event is one NDJSON line, `{ seq, ts, type, actor, …payload }`, appended to a
+per-project log in the data dir — `events.ndjson` for the `default` project,
+`project-<name>.ndjson` for others (set `AGENTSYNC_DATA` to relocate the dir). Each
+project's log is its own source of truth: replayable, auditable, and it *is* that
+project's dashboard timeline.
 
 Event types: `member.register` · `member.presence` · `plan.set` · `plan.approve` ·
 `task.add` · `task.claim` · `task.release` · `task.complete` · `edit.announce` · `chat`.

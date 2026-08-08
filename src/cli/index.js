@@ -36,17 +36,16 @@ function loadConfig() { return existsSync(CONFIG_PATH) ? parseYaml(readFileSync(
 async function cmdHub() {
   const port = Number(flag("port", process.env.PORT || 7777));
   const token = flag("token", process.env.AGENTSYNC_TOKEN || "");
-  // Persist the event log under AGENTSYNC_DATA (point it at a mounted volume on a
-  // deployed hub) so chat/tasks/plan survive a redeploy; default to the local repo.
+  // Persist under AGENTSYNC_DATA (point it at a mounted volume on a deployed hub) so
+  // chat/tasks/plan survive a redeploy; default to the local repo. One file per project.
   const dir = process.env.AGENTSYNC_DATA || join(CWD, ".agentsync");
-  const logPath = flag("log", join(dir, "events.ndjson"));
-  startHub({ port, token, logPath });
+  startHub({ port, token, dataDir: dir });
   const lan = lanIP();
   say(`\n  ${c.b}${c.cy}⚡ AgentSync hub is live${c.reset}\n`);
   say(`  Dashboard   ${c.g}http://localhost:${port}${c.reset}${lan ? `  ·  http://${lan}:${port}` : ""}`);
   say(`  Hub URL     ${c.g}http://${lan || "localhost"}:${port}${c.reset}`);
   say(`  Token       ${token ? c.y + token + c.reset : c.dim + "(none — open)" + c.reset}`);
-  say(`  Event log   ${c.g}${logPath}${c.reset}${process.env.AGENTSYNC_DATA ? "" : `${c.dim}  (ephemeral — set AGENTSYNC_DATA to a mounted volume to persist)${c.reset}`}`);
+  say(`  Data dir    ${c.g}${dir}${c.reset}${process.env.AGENTSYNC_DATA ? "" : `${c.dim}  (ephemeral — set AGENTSYNC_DATA to a mounted volume to persist)${c.reset}`}`);
   say(`\n  Teammates join with:`);
   say(`    ${c.dim}npx agentsync join http://${lan || "localhost"}:${port}${token ? " --token " + token : ""}${c.reset}\n`);
   process.on("SIGINT", () => process.exit(0));
@@ -69,11 +68,14 @@ async function setupMember(url, token) {
   }
   if (!person || !machine) return fail("Need at least --name and --machine.");
   const member = { id: `${person}.${machine}.${agent}`.toLowerCase().replace(/\s+/g, "-"), person, machine, agentKind: agent, role };
-  saveIdentity({ member, hubUrl: url, token });
-  writeMcpConfig(url, token, agent);
+  // Which project on the hub this repo belongs to — from config (set at init), sanitized to a
+  // valid room name. This is what keeps one deployed hub's repos from commingling.
+  const project = projectName(flag("project") || cfg.project || basename(CWD));
+  saveIdentity({ member, hubUrl: url, token, project });
+  writeMcpConfig(url, token, agent, project);
   installHooks();
   writeAgentContext(); // ensure AGENTS.md + CLAUDE.md pointer exist locally even if the repo never committed them
-  try { const cl = new HubClient({ url, token, member }); await cl.connect(); await cl.register(); cl.postMessage(`👋 ${member.id} joined`); setTimeout(() => cl.close(), 400); } catch {}
+  try { const cl = new HubClient({ url, token, member, project }); await cl.connect(); await cl.register(); cl.postMessage(`👋 ${member.id} joined`); setTimeout(() => cl.close(), 400); } catch {}
   return member;
 }
 
@@ -129,7 +131,7 @@ async function cmdUp() {
     const lan = lanIP();
     hubUrl = `http://${lan || "localhost"}:${port}`;
     const dir = process.env.AGENTSYNC_DATA || join(CWD, ".agentsync");
-    localHub = startHub({ port, token, logPath: join(dir, "events.ndjson") });
+    localHub = startHub({ port, token, dataDir: dir });
     say(`\n  ${c.b}${c.cy}⚡ Hub started${c.reset} on ${c.g}${hubUrl}${c.reset} ${c.dim}(token ${token})${c.reset}`);
   } else {
     say(`\n  ${c.b}Using hub${c.reset} ${c.g}${hubUrl}${c.reset}`);
@@ -160,8 +162,8 @@ function cmdInvite() {
   say("");
 }
 
-function writeMcpConfig(url, token, agent) {
-  const mcpEntry = { command: "node", args: [join(PKG_ROOT, "src", "mcp", "server.js")], env: { AGENTSYNC_HUB: url, AGENTSYNC_TOKEN: token } };
+function writeMcpConfig(url, token, agent, project = "default") {
+  const mcpEntry = { command: "node", args: [join(PKG_ROOT, "src", "mcp", "server.js")], env: { AGENTSYNC_HUB: url, AGENTSYNC_TOKEN: token, AGENTSYNC_PROJECT: project } };
   // Claude Code / generic: project-level .mcp.json
   const mj = join(CWD, ".mcp.json");
   const cur = existsSync(mj) ? JSON.parse(readFileSync(mj, "utf8")) : {};
@@ -170,7 +172,7 @@ function writeMcpConfig(url, token, agent) {
   say(`  ${c.dim}wrote .mcp.json (agentsync MCP server)${c.reset}`);
   if (agent === "codex") {
     say(`  ${c.y}Codex:${c.reset} add this to ~/.codex/config.toml:`);
-    say(`    ${c.dim}[mcp_servers.agentsync]\n    command = "node"\n    args = ["${mcpEntry.args[0]}"]\n    env = { AGENTSYNC_HUB = "${url}", AGENTSYNC_TOKEN = "${token}" }${c.reset}`);
+    say(`    ${c.dim}[mcp_servers.agentsync]\n    command = "node"\n    args = ["${mcpEntry.args[0]}"]\n    env = { AGENTSYNC_HUB = "${url}", AGENTSYNC_TOKEN = "${token}", AGENTSYNC_PROJECT = "${project}" }${c.reset}`);
   }
 }
 
@@ -224,8 +226,10 @@ function cmdGuardCommit() {
 async function cmdStatus() {
   const id = loadIdentity(); const url = args[1] || id?.hubUrl;
   if (!url) return fail("No hub. Pass a url or join first.");
-  const res = await fetch(url.replace(/\/$/, "") + "/state");
+  const project = projectName(flag("project") || id?.project || loadConfig().project || "default");
+  const res = await fetch(url.replace(/\/$/, "") + "/state?project=" + encodeURIComponent(project));
   const s = await res.json();
+  say(`\n  ${c.b}Project${c.reset}: ${c.cy}${project}${c.reset}`);
   say(`\n  ${c.b}Members${c.reset}`);
   for (const m of s.members) say(`    ${m.online ? c.g + "●" : c.dim + "○"}${c.reset} ${m.id} ${c.dim}(${m.role || "?"})${c.reset}`);
   say(`\n  ${c.b}Tasks${c.reset}`);
@@ -308,6 +312,9 @@ function globMatch(glob, file) {
   const re = "^" + glob.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*\*/g, "§").replace(/\*/g, "[^/]*").replace(/§/g, ".*").replace(/\?/g, "[^/]") + "$";
   return new RegExp(re).test(file);
 }
+// Normalize any repo/config name into a valid hub project id (the hub rejects
+// anything outside [A-Za-z0-9._-], so sanitize here rather than send junk).
+function projectName(p) { return (String(p || "").replace(/[^A-Za-z0-9._-]/g, "-").slice(0, 64)) || "default"; }
 function fail(msg) { console.error(msg); process.exit(1); }
 
 const HELP = `agentsync — coordination hub for teams of humans + AI coding agents

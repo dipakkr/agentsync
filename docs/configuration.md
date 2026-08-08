@@ -50,7 +50,7 @@ git:
 
 | Key | Used by | Effect |
 |---|---|---|
-| `project` | dashboard | Display name |
+| `project` | `join`, hub | The project room this repo maps to on the hub — isolates roster/tasks/chat/conflicts; sanitized, defaults to the folder name |
 | `hub_url` | `join`, hooks | Default hub when no URL is passed |
 | `roles[].name` | `join` prompt | The role choices offered at onboarding |
 | `roles[].sandbox` | agents | Advisory: `read-only` roles shouldn't edit |
