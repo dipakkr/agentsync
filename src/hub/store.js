@@ -101,7 +101,10 @@ export class Store {
         break;
       }
       case "chat":
-        this.messages.push({ id: ev.seq, from: ev.actor, to: ev.to || null, text: ev.text, ts: ev.ts });
+        this.messages.push({
+          id: ev.seq, from: ev.actor, to: ev.to || null, text: ev.text, ts: ev.ts,
+          kind: ev.kind || "fyi", reply_to: ev.reply_to ?? null, thread: ev.thread ?? null, subtype: ev.subtype || null,
+        });
         if (this.messages.length > MAX_MESSAGES) this.messages.shift();
         break;
       case "edit.announce":

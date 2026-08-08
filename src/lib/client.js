@@ -7,6 +7,8 @@
 // without losing buffered messages, and RE-ASSERTS its task claims — so a transient
 // disconnect can never silently strip an agent's file-scope locks while it keeps editing.
 
+const HOP_CAP = 6; // a thread with more than this many messages stops surfacing as needs_reply
+
 export class HubClient {
   constructor({ url, token = "", member, project = null }) {
     this.url = url.replace(/^http/, "ws").replace(/\/$/, "") + "/ws";
@@ -146,7 +148,10 @@ export class HubClient {
       if (mem) mem.online = ev.online;
     } else if (ev.type === "chat") {
       if (!this.state.messages.some((x) => x.id === ev.seq)) {
-        this.state.messages.push({ id: ev.seq, from: ev.actor, to: ev.to || null, text: ev.text, ts: ev.ts });
+        this.state.messages.push({
+          id: ev.seq, from: ev.actor, to: ev.to || null, text: ev.text, ts: ev.ts,
+          kind: ev.kind || "fyi", reply_to: ev.reply_to ?? null, thread: ev.thread ?? null, subtype: ev.subtype || null,
+        });
       }
     }
   }
@@ -177,7 +182,19 @@ export class HubClient {
   addTask(task) { this._safeSend({ type: "task.add", task }); }
   releaseTask(taskId) { this._myClaims.delete(taskId); this._safeSend({ type: "task.release", taskId }); }
   completeTask(taskId) { this._myClaims.delete(taskId); this._safeSend({ type: "task.complete", taskId }); }
-  postMessage(text, to = null) { this._safeSend({ type: "chat", text, to }); }
+  // kind: "fyi" (default, no reply expected) | "ask" (expects one reply) | "reply" (answers reply_to).
+  postMessage(text, to = null, kind = "fyi", reply_to = null) { this._safeSend({ type: "chat", text, to, kind, reply_to }); }
+
+  // Block until a NEW message addressed to me arrives (or the window elapses). This is how an
+  // agent that just asked a question waits for the answer without busy-polling. It does NOT
+  // return messages already buffered — read_messages first, then wait for what's next.
+  waitForMessage({ timeout = 25_000 } = {}) {
+    const me = this.member?.id;
+    return this._await(
+      (x) => x.type === "event" && x.event?.type === "chat" && x.event.to === me && x.event.actor !== me,
+      timeout,
+    ).then((x) => ({ id: x.event.seq, from: x.event.actor, to: x.event.to, text: x.event.text, kind: x.event.kind || "fyi", thread: x.event.thread || x.event.seq }));
+  }
 
   /**
    * Your inbox: broadcasts + messages addressed to you (and your own, for context).
@@ -187,12 +204,27 @@ export class HubClient {
    */
   readMessages({ sinceId = 0, all = false, limit = 50 } = {}) {
     const me = this.member?.id;
-    let msgs = this.state.messages || [];
+    const allMsgs = this.state.messages || [];
+    let msgs = allMsgs;
     if (sinceId) msgs = msgs.filter((m) => (m.id || 0) > sinceId);
     if (!all) msgs = msgs.filter((m) => !m.to || m.to === me || m.from === me);
     msgs = msgs.slice(-limit);
     const maxId = msgs.reduce((x, m) => Math.max(x, m.id || 0), sinceId);
-    return { messages: msgs, max_id: maxId, me };
+    return { messages: msgs, needs_reply: this._needsReply(allMsgs, me), max_id: maxId, me };
+  }
+
+  // The anti-loop core, computed (not left to the model): asks addressed to me that nobody
+  // has answered yet and haven't run away. Reply ONLY to these. Empty ⇒ nothing to answer,
+  // so a reply loop can't even begin. An ask's own id is its thread; a reply carries that id.
+  _needsReply(allMsgs, me) {
+    if (!me) return [];
+    const eff = (m) => m.thread || m.id;
+    const replied = new Set(allMsgs.filter((m) => m.kind === "reply").map(eff));
+    const counts = {};
+    for (const m of allMsgs) { const t = eff(m); counts[t] = (counts[t] || 0) + 1; }
+    return allMsgs
+      .filter((m) => m.kind === "ask" && m.to === me && m.from !== me && !replied.has(eff(m)) && (counts[eff(m)] || 0) <= HOP_CAP)
+      .map((m) => ({ id: m.id, from: m.from, text: m.text, thread: eff(m) }));
   }
 
   async claimTask(taskId) {

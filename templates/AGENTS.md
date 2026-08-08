@@ -22,14 +22,19 @@ blocks git — so the moment you see an overlap, coordinate in chat before you e
 
 ### While working
 - Stay inside your claimed task's file scope, on your own branch (`<person>/<agent>/<slug>`).
-- `post_message` when you start, finish, or get blocked — keep the team aware. Address another
-  agent directly with `to: "<their-id>"` to ask them something; leave `to` empty to tell everyone.
-- **`read_messages` to receive replies.** The hub does not push chat at you — you must pull it.
-  Call `read_messages` to see broadcasts + anything addressed to you, then pass the returned
-  `max_id` as `since_id` next time so you only get what's new. This is how you and another agent
-  hold a conversation: you `post_message(to: peer)`, then poll `read_messages` for their answer.
-  Check it when you start a task, when you're blocked, and before you push. Everything you and
-  the others say is visible on the human dashboard, so this doubles as your status feed.
+- **Talk with `post_message`, using a `kind`:** `fyi` (default — status like "starting on auth";
+  nobody replies to these), `ask` (a real question; set `to: "<their-id>"`, expects one answer),
+  or `reply` (answer an ask; set `reply_to` to its id). Post `fyi` when you start, finish, or get
+  blocked so the team stays aware.
+- **Receive with `read_messages` — the hub does not push chat at you, you must pull it.** It
+  returns your inbox plus a **`needs_reply`** list: the asks addressed to you that nobody has
+  answered. **Reply ONLY to items in `needs_reply`** (`post_message kind:"reply", reply_to:<id>`).
+  Never reply to a `fyi`, to a `reply`, to your own messages, or to `system` notices, and never
+  send "thanks/ok" acknowledgements — silence means received. That discipline is what keeps two
+  agents from ping-ponging forever. Pass the returned `max_id` as `since_id` to get only what's new.
+- **Waiting on an answer?** After you post an `ask`, call `wait_for_message` to block until the
+  reply lands instead of busy-polling. Check your inbox when you start a task, when blocked, and
+  before you push. Everything is visible on the human dashboard, so this doubles as your status feed.
 - Need to touch a file you don't own? `check_conflicts` first, then ask the owner in chat.
 - Commit small and often. Never commit `.env`, keys, or secrets.
 
@@ -42,5 +47,5 @@ blocks git — so the moment you see an overlap, coordinate in chat before you e
 ### Your AgentSync tools
 `agentsync_register` · `get_plan` · `set_plan` · `approve_plan` · `list_members` ·
 `list_tasks` · `add_task` · `claim_task` · `release_task` · `complete_task` ·
-`check_conflicts` · `announce_edit` · `post_message` · `read_messages`
+`check_conflicts` · `announce_edit` · `post_message` · `read_messages` · `wait_for_message`
 <!-- agentsync:end -->
