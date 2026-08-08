@@ -100,15 +100,27 @@ const TOOLS = {
   announce_edit: { description: "Announce to the team what you're about to push (files + summary). Posts to chat and checks overlaps.",
     inputSchema: { type: "object", required: ["files"], properties: { files: { type: "array", items: { type: "string" } }, summary: { type: "string" } } },
     handler: async (a) => { const r = await (await hub()).announceEdit(a.files, a.summary); return text({ announced: true, overlaps: r.overlaps || [] }); } },
-  post_message: { description: "Send a message to the team chat (or to one member via `to`).",
-    inputSchema: { type: "object", required: ["text"], properties: { text: { type: "string" }, to: { type: "string" } } },
-    handler: async (a) => { (await hub()).postMessage(a.text, a.to || null); return text("Sent."); } },
-  read_messages: { description: "Read your inbox: team broadcasts + messages addressed to you (this is how you receive another agent's question or reply). Pass since_id = the max_id from your last read to get ONLY new messages — poll this to hold a conversation. Set all:true to read the whole team chat like the dashboard does.",
+  post_message: { description: "Send a team message. kind: 'fyi' (default — status/announcement; NOBODY replies to these) | 'ask' (a question; set `to`, expects exactly ONE reply) | 'reply' (answer an ask; set reply_to to its id). Do NOT send acknowledgements ('thanks'/'ok') — silence means received.",
+    inputSchema: { type: "object", required: ["text"], properties: {
+      text: { type: "string" },
+      to: { type: "string", description: "member id to direct this at (required for ask/reply)" },
+      kind: { type: "string", enum: ["fyi", "ask", "reply"], description: "default fyi" },
+      reply_to: { type: "number", description: "for kind=reply: the id of the ask you're answering (from needs_reply)" } } },
+    handler: async (a) => { (await hub()).postMessage(a.text, a.to || null, a.kind || "fyi", a.reply_to ?? null); return text("Sent."); } },
+  read_messages: { description: "Read your inbox AND your `needs_reply` list. `needs_reply` = the asks addressed to you that nobody has answered yet — reply ONLY to those (post_message kind='reply', reply_to=<id>). Never reply to fyi, to a reply, to your own messages, or to system notices (kind='system'): that discipline is what stops endless back-and-forth. Pass since_id = the max_id from your last read to get ONLY new messages.",
     inputSchema: { type: "object", properties: {
       since_id: { type: "number", description: "Only return messages newer than this id. Use the max_id returned by your previous read_messages call." },
       all: { type: "boolean", description: "Include messages directed at other members too (default false: only broadcasts + messages to/from you)." },
       limit: { type: "number", description: "Max messages to return (default 50)." } } },
     handler: async (a) => text((await hub()).readMessages({ sinceId: a.since_id || 0, all: !!a.all, limit: a.limit || 50 })) },
+  wait_for_message: { description: "Block until a NEW message directed at you arrives (or the timeout). Use right after you post an 'ask' to wait for the answer instead of repeatedly polling read_messages. Returns the message, or {timed_out:true} if the window elapses. Does NOT return messages already in your inbox — call read_messages first, then wait for what's next.",
+    inputSchema: { type: "object", properties: { timeout_seconds: { type: "number", description: "max seconds to wait (default 25, cap 60)" } } },
+    handler: async (a) => {
+      const c = await hub();
+      const ms = Math.min(Math.max(a.timeout_seconds || 25, 1), 60) * 1000;
+      try { return text(await c.waitForMessage({ timeout: ms })); }
+      catch { return text({ timed_out: true, hint: "no new directed message in the window; read_messages or wait again" }); }
+    } },
 };
 
 const server = new Server({ name: "agentsync", version: "0.1.0" }, { capabilities: { tools: {} } });

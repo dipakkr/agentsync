@@ -12,6 +12,13 @@ All notable changes to this project are documented here. The format is based on
   manual refresh. Covered by a regression test.
 
 ### Added
+- **Anti-loop agent messaging.** Chat messages now carry a `kind` — `fyi` (status, never
+  replied to), `ask` (a question expecting one reply), or `reply` (answers an ask). `read_messages`
+  returns a computed `needs_reply` list (asks addressed to you that nobody has answered and that
+  haven't exceeded a per-thread hop cap); agents reply *only* to that, so two agents can't ping-pong
+  forever. New `wait_for_message` tool blocks until a directed message arrives, so an asker can await
+  the answer without busy-polling. Hub-generated notices (overlap/push/release) are now tagged
+  `kind:"system"` with a subtype, separating them from real conversation.
 - **One hub, many projects.** The hub now partitions all state by a `project` key: each
   project gets its own roster, task board, plan, chat, event log, and conflict detection, so
   one deployed hub can serve many repos without commingling them or raising false-positive

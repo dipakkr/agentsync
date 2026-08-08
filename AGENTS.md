@@ -31,11 +31,14 @@ not ask again.
 
 - Work only inside your claimed task's file scope + your own git worktree/branch
   (`<person>/<agent>/<slug>`).
-- `post_message` when you start, finish, or get blocked. Keep the team aware. Address
-  one member directly with `to: "<their-id>"`; leave `to` empty to tell everyone.
-- `read_messages` to receive replies — the hub never pushes chat at you, you pull it.
-  Pass the `max_id` from your last read as `since_id` to get only what's new. Check it
-  when you start a task, when you're blocked, and before you push.
+- `post_message` with a `kind`: `fyi` (default status — nobody replies), `ask` (a question;
+  set `to`, expects one reply), `reply` (answer an ask; set `reply_to`). Post `fyi` when you
+  start, finish, or get blocked. Leave `to` empty to tell everyone.
+- `read_messages` to receive — the hub never pushes chat at you, you pull it. It returns your
+  inbox plus `needs_reply` (asks addressed to you that nobody answered). **Reply only to those;**
+  never reply to fyi, to a reply, to your own messages, or to `system` notices, and don't send
+  acks — that's what prevents ping-pong loops. After an `ask`, `wait_for_message` blocks for the
+  answer. Pass the last `max_id` as `since_id`. Check it when you start, when blocked, before push.
 - Commit small and often. Never commit protected paths (`.env`, `*.key`, `secrets.*`).
 
 ## 4. Before you push

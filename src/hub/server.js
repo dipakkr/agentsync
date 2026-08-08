@@ -167,7 +167,7 @@ export function startHub({ port = 7777, token = "", dataDir, logPath }) {
         broadcast(project, { type: "task.list", tasks: [...store.tasks.values()] });
         send(ws, { type: "claim.result", taskId: m.taskId, ok: true, overlaps });
         if (overlaps.length)
-          emit(project, "chat", { text: `⚠️ overlap: task "${t.title}" shares files with ${overlaps.map((o) => o.owner).join(", ")}`, to: null }, "hub");
+          emit(project, "chat", { text: `⚠️ overlap: task "${t.title}" shares files with ${overlaps.map((o) => o.owner).join(", ")}`, to: null, kind: "system", subtype: "overlap" }, "hub");
         break;
       }
       case "task.release":
@@ -187,15 +187,23 @@ export function startHub({ port = 7777, token = "", dataDir, logPath }) {
         const id = cx.id || "unknown";
         const hits = store.claimsTouchingFiles(m.files || [], id);
         emit(project, "edit.announce", { files: m.files, summary: m.summary, overlaps: hits }, id);
-        emit(project, "chat", { text: `📤 ${id} about to push: ${m.summary || (m.files || []).length + " files"}`, to: null }, "hub");
+        emit(project, "chat", { text: `📤 ${id} about to push: ${m.summary || (m.files || []).length + " files"}`, to: null, kind: "system", subtype: "push" }, "hub");
         if (hits.length)
-          emit(project, "chat", { text: `⚠️ push overlaps active work by ${hits.map((h) => h.owner).join(", ")}`, to: null }, "hub");
+          emit(project, "chat", { text: `⚠️ push overlaps active work by ${hits.map((h) => h.owner).join(", ")}`, to: null, kind: "system", subtype: "overlap" }, "hub");
         send(ws, { type: "announce.result", overlaps: hits });
         break;
       }
-      case "chat":
-        emit(project, "chat", { text: m.text, to: m.to || null }, cx.id || m.from || "anon");
+      case "chat": {
+        const kind = ["fyi", "ask", "reply"].includes(m.kind) ? m.kind : "fyi";
+        // a reply inherits the thread of the message it answers, so ask→reply group together
+        let thread = null;
+        if (kind === "reply" && m.reply_to != null) {
+          const src = store.messages.find((x) => x.id === m.reply_to);
+          thread = src ? src.thread || src.id : m.reply_to;
+        }
+        emit(project, "chat", { text: m.text, to: m.to || null, kind, reply_to: m.reply_to ?? null, thread }, cx.id || m.from || "anon");
         break;
+      }
       default:
         send(ws, { type: "error", message: "unknown type: " + m.type });
     }
@@ -213,7 +221,7 @@ export function startHub({ port = 7777, token = "", dataDir, logPath }) {
           for (const t of store.tasks.values()) {
             if (t.status === "claimed" && t.owner === mem.id) {
               emit(project, "task.release", { taskId: t.id }, "hub");
-              emit(project, "chat", { text: `🔓 released "${t.title}" — ${mem.id} went offline`, to: null }, "hub");
+              emit(project, "chat", { text: `🔓 released "${t.title}" — ${mem.id} went offline`, to: null, kind: "system", subtype: "release" }, "hub");
             }
           }
         }

@@ -92,6 +92,28 @@ try {
   assert(reclaimed?.status === "claimed" && reclaimed.owner === "deepak.mac-a.codex",
     "client re-asserts its claim after a disconnect released it (locks don't silently vanish)");
 
+  // regression: the anti-loop messaging protocol. Asks addressed to me surface as needs_reply
+  // (and only to me); fyi never does; a reply clears the thread so the exchange can't loop.
+  lead.postMessage("status: starting on auth", null, "fyi"); // broadcast fyi — nobody replies to these
+  lead.postMessage("are you touching auth?", fe.member.id, "ask"); // ask → fe
+  await new Promise((r) => setTimeout(r, 150));
+  const feInbox = fe.readMessages({});
+  assert(feInbox.needs_reply.length === 1 && feInbox.needs_reply[0].from === "deepak.mac-a.claude",
+    "an ask addressed to me surfaces in needs_reply");
+  assert(be.readMessages({}).needs_reply.length === 0, "an ask directed at someone else is not mine to answer");
+  const askId = feInbox.needs_reply[0].id;
+  fe.postMessage("no, only session.js", "deepak.mac-a.claude", "reply", askId); // answer it
+  await new Promise((r) => setTimeout(r, 150));
+  assert(fe.readMessages({}).needs_reply.length === 0, "a reply clears the ask from needs_reply (no loop)");
+  assert(lead.readMessages({}).needs_reply.length === 0, "a reply is not itself something to reply to");
+
+  // wait_for_message blocks until a new directed message lands (how an asker awaits an answer)
+  const waitP = be.waitForMessage({ timeout: 2000 });
+  await new Promise((r) => setTimeout(r, 50));
+  lead.postMessage("ping for be", "deepak.mac-a.codex", "ask");
+  const got = await waitP;
+  assert(got.from === "deepak.mac-a.claude" && got.text === "ping for be", "wait_for_message resolves on a new directed message");
+
   // regression: two projects on one hub are ISOLATED — same file globs, ids, and chat must
   // not leak across the boundary (this is what makes one deployed hub safe for many repos).
   const a = new HubClient({ url, project: "proj-a", member: { id: "x.m.claude", person: "x", machine: "m", agentKind: "claude", role: "coder" } });
