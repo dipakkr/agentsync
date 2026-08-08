@@ -12,6 +12,13 @@ All notable changes to this project are documented here. The format is based on
   manual refresh. Covered by a regression test.
 
 ### Added
+- **One hub, many projects.** The hub now partitions all state by a `project` key: each
+  project gets its own roster, task board, plan, chat, event log, and conflict detection, so
+  one deployed hub can serve many repos without commingling them or raising false-positive
+  overlap warnings on identical globs. The key comes from `project:` in the config (defaults
+  to the folder name) and is threaded through `join` → the agent's MCP env automatically;
+  the dashboard views a project via `?project=<name>`. Isolation is organizational, not a
+  security boundary (the shared token still gates the whole hub).
 - **Durable hub state via a mounted volume.** The hub reads its data directory from
   `AGENTSYNC_DATA` (default: local `.agentsync/`), so pointing it at a mounted volume on a
   deployed host makes chat/tasks/plan/roster survive redeploys and idle-sleep instead of
