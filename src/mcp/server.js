@@ -42,7 +42,7 @@ const TOOLS = {
       person: { type: "string", description: "Human's name, e.g. deepak" },
       machine: { type: "string", description: "This machine's label, e.g. mac-a" },
       agent: { type: "string", description: "Which agent you are: claude | codex | kimi | …" },
-      role: { type: "string", description: "Optional role: coder | frontend | backend | reviewer | planner | orchestrator" },
+      role: { type: "string", description: "Optional role: coder | frontend | backend | reviewer | planner | manager | orchestrator. \"manager\"/\"orchestrator\" unlocks the handoff tools (assign_task, split_task, update_task_status)." },
     } },
     handler: async (a) => {
       const existing = loadIdentity() || {};
@@ -69,7 +69,7 @@ const TOOLS = {
   list_members: { description: "List team members and who is online.",
     inputSchema: { type: "object", properties: {} },
     handler: async () => text((await hub()).state.members) },
-  list_tasks: { description: "List all tasks with status, owner and file scope.",
+  list_tasks: { description: "List all tasks with status, owner and file scope. Tasks may carry `assignee` — a handoff suggestion for that member. If a task is assigned to you, claim it.",
     inputSchema: { type: "object", properties: {} },
     handler: async () => text((await hub()).state.tasks) },
   add_task: { description: "Add a task with an explicit file scope (globs). Scope is what gets locked on claim.",
@@ -92,6 +92,27 @@ const TOOLS = {
   complete_task: { description: "Mark a task complete (e.g. after opening its PR).",
     inputSchema: { type: "object", required: ["taskId"], properties: { taskId: { type: "string" } } },
     handler: async (a) => { (await hub()).completeTask(a.taskId); return text("Completed."); } },
+  assign_task: { description: "Hand a task off to a specific member (manager/orchestrator only). Sets the assignee and notifies them in team chat; they claim_task it when they pick it up.",
+    inputSchema: { type: "object", required: ["taskId", "memberId"], properties: {
+      taskId: { type: "string" }, memberId: { type: "string", description: "target member id, e.g. deepak.mac-a.claude" } } },
+    handler: async (a) => { const r = await (await hub()).assignTask(a.taskId, a.memberId);
+      if (!r.ok) return text(`Could not assign: ${r.reason}`);
+      return text(`Assigned "${a.taskId}" to ${a.memberId} and notified them in chat.`); } },
+  split_task: { description: "Split a task into smaller subtasks with their own file scopes (manager/orchestrator only). The parent is archived; children appear on the board as open tasks.",
+    inputSchema: { type: "object", required: ["taskId", "subtasks"], properties: {
+      taskId: { type: "string" },
+      subtasks: { type: "array", description: "the subtasks to create in the parent's place", items: { type: "object", required: ["title", "scope"], properties: {
+        title: { type: "string" }, scope: { type: "array", items: { type: "string" }, description: "globs, e.g. [\"src/auth/**\"]" } } } } } },
+    handler: async (a) => { const r = await (await hub()).splitTask(a.taskId, a.subtasks);
+      if (!r.ok) return text(`Could not split: ${r.reason}`);
+      return text({ split: true, parent: a.taskId, created: r.ids || [] }); } },
+  update_task_status: { description: "Move a task to open | claimed | review | done (manager/orchestrator only). Prefer claim_task/complete_task for your own work; this is for managing others' tasks.",
+    inputSchema: { type: "object", required: ["taskId", "status"], properties: {
+      taskId: { type: "string" }, status: { type: "string", enum: ["open", "claimed", "review", "done"] },
+      memberId: { type: "string", description: "optional member to set as the task's owner (e.g. when moving to claimed)" } } },
+    handler: async (a) => { const r = await (await hub()).setTaskStatus(a.taskId, a.status, { memberId: a.memberId });
+      if (!r.ok) return text(`Could not update: ${r.reason}`);
+      return text(`Task "${a.taskId}" → ${a.status}.`); } },
   check_conflicts: { description: "Before pushing, check whether files you're about to push overlap another member's active claim.",
     inputSchema: { type: "object", required: ["files"], properties: { files: { type: "array", items: { type: "string" } } } },
     handler: async (a) => { const r = await (await hub()).checkConflicts(a.files);

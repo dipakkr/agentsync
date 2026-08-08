@@ -104,6 +104,22 @@ export class HubClient {
     this._safeSend({ type: "task.claim", taskId, memberId: this.member.id });
     return this._await((x) => x.type === "claim.result" && x.taskId === taskId);
   }
+  async assignTask(taskId, memberId, admin = "") {
+    this._safeSend({ type: "task.assign", taskId, memberId, admin });
+    return this._await((x) => x.type === "assign.result" && x.taskId === taskId);
+  }
+  async splitTask(taskId, subtasks, admin = "") {
+    this._safeSend({ type: "task.split", taskId, subtasks, admin });
+    return this._await((x) => x.type === "split.result" && x.taskId === taskId);
+  }
+  async setTaskStatus(taskId, status, { memberId, admin } = {}) {
+    this._safeSend({ type: "task.status", taskId, status, memberId, admin });
+    return this._await((x) => x.type === "status.result" && x.taskId === taskId);
+  }
+  async deleteTask(taskId, admin = "") {
+    this._safeSend({ type: "task.delete", taskId, admin });
+    return this._await((x) => x.type === "delete.result" && x.taskId === taskId);
+  }
   async checkConflicts(files) {
     this._safeSend({ type: "conflict.check", files });
     return this._await((x) => x.type === "conflict.result");

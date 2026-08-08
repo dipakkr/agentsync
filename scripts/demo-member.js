@@ -48,6 +48,21 @@ await wait(300);
 // backend simulates a pre-push announce that overlaps frontend's claim
 const a = await backend.announceEdit(["src/ui/login/api.ts", "src/auth/routes.ts"], "wire login to API");
 console.log("backend announce overlaps:", a.overlaps?.map((o) => o.owner) || []);
+await wait(300);
+
+// manager ops (lead is orchestrator): split, assign, review — fills every board column
+const s = await lead.splitTask("shared-types", [
+  { title: "Auth types: session", scope: ["src/types/session.ts"] },
+  { title: "Auth types: tokens", scope: ["src/types/tokens.ts"] },
+]);
+console.log("lead splits shared-types:", s.ok ? "→ " + s.ids.join(", ") : s.reason);
+if (s.ok) {
+  const g = await lead.assignTask(s.ids[0], "naman.laptop.claude");
+  console.log(`lead assigns ${s.ids[0]} to frontend:`, g.ok ? "ok" : g.reason);
+}
+const rv = await lead.setTaskStatus("auth-api", "review");
+console.log("lead moves auth-api to review:", rv.ok ? "ok" : rv.reason);
+await wait(300);
 
 if (process.env.AGENTSYNC_KEEP) {
   console.log("\n✓ demo seeded — members staying online (Ctrl-C to exit).");

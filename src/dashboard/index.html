@@ -3,183 +3,848 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>AgentSync · dashboard</title>
+<title>AgentSync dashboard</title>
 <style>
   :root {
-    --bg:#0b0e14; --panel:#141922; --panel2:#1b2230; --line:#273040;
-    --text:#e6e9ef; --dim:#8b95a7; --accent:#5b8def; --ok:#3ecf8e; --warn:#f0b429; --off:#5a6373;
+    --bg:#0b0b0c; --surface:#121214; --surface-2:#19191c; --line:#232327; --line-soft:#1c1c20;
+    --text:#ececee; --dim:#9a9aa3; --faint:#6b6b74;
+    --accent:#5b74f0; --accent-soft:rgba(91,116,240,.14);
+    --ok:#3fbf82; --ok-soft:rgba(63,191,130,.14);
+    --warn:#d9a12b; --warn-soft:rgba(217,161,43,.16);
+    --off:#55555e;
+    --btn-solid:#ffffff; --btn-solid-text:#111113;
+    --r-card:10px; --r-input:7px;
+    --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
   }
   @media (prefers-color-scheme: light) {
-    :root { --bg:#f4f6fa; --panel:#fff; --panel2:#eef1f6; --line:#dde3ec;
-            --text:#1a2030; --dim:#68728a; --accent:#3b6fd6; --ok:#1f9d63; --warn:#b9791a; --off:#a7b0c0; }
+    :root {
+      --bg:#f6f6f7; --surface:#ffffff; --surface-2:#ededef; --line:#dcdce0; --line-soft:#e7e7ea;
+      --text:#161618; --dim:#5f5f68; --faint:#8f8f98;
+      --accent:#3b5bdb; --accent-soft:rgba(59,91,219,.10);
+      --ok:#188a5c; --ok-soft:rgba(24,138,92,.12);
+      --warn:#8f6410; --warn-soft:rgba(143,100,16,.12);
+      --off:#b0b0b8;
+      --btn-solid:#161618; --btn-solid-text:#ffffff;
+    }
   }
   * { box-sizing:border-box; }
-  body { margin:0; font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-         background:var(--bg); color:var(--text); }
-  header { display:flex; align-items:center; gap:14px; padding:12px 18px;
-           border-bottom:1px solid var(--line); background:var(--panel); }
-  header h1 { font-size:15px; margin:0; letter-spacing:.3px; }
-  header .badge { font-size:12px; color:var(--dim); }
-  .dot { width:8px; height:8px; border-radius:50%; display:inline-block; background:var(--off); }
-  .dot.on { background:var(--ok); box-shadow:0 0 8px var(--ok); }
-  main { display:grid; grid-template-columns:260px 1fr 340px; gap:14px; padding:14px; height:calc(100vh - 50px); }
-  .col { display:flex; flex-direction:column; gap:14px; min-height:0; }
-  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 14px;
-          display:flex; flex-direction:column; min-height:0; }
-  .card h2 { font-size:11px; text-transform:uppercase; letter-spacing:.8px; color:var(--dim);
-             margin:0 0 10px; font-weight:600; }
-  .scroll { overflow-y:auto; min-height:0; }
-  .member { display:flex; align-items:center; gap:8px; padding:6px 0; }
-  .member .who { font-weight:600; }
-  .member .role { font-size:11px; color:var(--dim); margin-left:auto; padding:1px 7px;
-                  border:1px solid var(--line); border-radius:20px; }
-  .plan { white-space:pre-wrap; font-size:13px; color:var(--text); }
-  .pill { font-size:10px; padding:2px 8px; border-radius:20px; text-transform:uppercase; letter-spacing:.5px; }
-  .pill.approved { background:rgba(62,207,142,.15); color:var(--ok); }
-  .pill.draft { background:rgba(240,180,41,.15); color:var(--warn); }
-  #chat { flex:1; }
-  .msg { padding:5px 0; border-bottom:1px solid var(--line); }
-  .msg .from { font-weight:600; color:var(--accent); }
-  .msg.hub .from { color:var(--warn); }
-  .msg .t { color:var(--dim); font-size:11px; margin-left:6px; }
-  .msg .to { font-weight:500; color:var(--ok); font-size:12px; }
-  .msg.direct { border-left:2px solid var(--ok); padding-left:7px; }
-  .composer { display:flex; gap:8px; margin-top:10px; }
-  .composer input { flex:1; background:var(--panel2); border:1px solid var(--line); color:var(--text);
-                    border-radius:8px; padding:8px 10px; font-size:13px; }
-  .composer button { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:8px 14px; cursor:pointer; }
-  .task { background:var(--panel2); border:1px solid var(--line); border-radius:9px; padding:8px 10px; margin-bottom:8px; }
-  .task .ttl { font-weight:600; }
-  .task .meta { font-size:11px; color:var(--dim); margin-top:3px; }
-  .task .scope { font-family:ui-monospace,monospace; font-size:11px; color:var(--dim); }
-  .task.claimed { border-left:3px solid var(--accent); }
-  .task.done { opacity:.5; }
-  .board-group h3 { font-size:11px; color:var(--dim); margin:4px 0 6px; }
-  .timeline .ev { font-size:12px; color:var(--dim); padding:3px 0; border-bottom:1px dashed var(--line); }
-  .timeline .ev b { color:var(--text); font-weight:600; }
+  [hidden] { display:none !important; }
+  body { margin:0; overflow:hidden; background:var(--bg); color:var(--text);
+         font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  .mono { font-family:var(--mono); }
+  button { font:inherit; }
+  input, select { font:inherit; font-size:12.5px; background:var(--bg); border:1px solid var(--line);
+                  color:var(--text); border-radius:var(--r-input); padding:7px 9px; }
+  input::placeholder { color:var(--faint); }
+  :focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+  .btn { background:var(--surface-2); border:1px solid var(--line); color:var(--text);
+         border-radius:var(--r-input); padding:6px 12px; cursor:pointer; font-size:12.5px; }
+  .btn.primary { background:var(--btn-solid); border-color:var(--btn-solid); color:var(--btn-solid-text); }
+  .mini { font-size:11px; padding:3px 7px; border-radius:var(--r-input); border:1px solid var(--line);
+          background:var(--surface); color:var(--text); cursor:pointer; }
+  .label { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--dim); font-weight:600; }
+  .dot { width:8px; height:8px; border-radius:50%; background:var(--off); flex:none; }
+  .dot.on { background:var(--ok); }
+  .dot.stall { background:var(--warn); }
+
+  header.topbar { display:flex; align-items:center; gap:14px; height:44px; padding:0 16px;
+                  border-bottom:1px solid var(--line); background:var(--surface); }
+  .brand { font-size:14px; font-weight:650; margin:0; letter-spacing:.2px; }
+  .status { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--dim); }
+  #sync { font-family:var(--mono); font-size:11px; color:var(--dim); }
+  .mgr { margin-left:auto; position:relative; display:flex; align-items:center; gap:8px; }
+  .chip-mgr { font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--accent);
+              border:1px solid var(--accent); border-radius:4px; padding:2px 8px; font-weight:600; }
+  .pop { position:absolute; top:calc(100% + 8px); right:0; z-index:30; width:240px;
+         background:var(--surface); border:1px solid var(--line); border-radius:var(--r-card);
+         padding:12px; display:flex; flex-direction:column; gap:8px; box-shadow:0 8px 24px rgba(0,0,0,.3); }
+  .pop-label { font-size:11px; color:var(--dim); }
+
+  main { display:grid; grid-template-columns:250px minmax(0,1fr) 330px; height:calc(100vh - 44px); }
+  .rail-left { border-right:1px solid var(--line); background:var(--surface);
+               display:flex; flex-direction:column; min-height:0; }
+  .rail-head { display:flex; align-items:center; justify-content:space-between;
+               padding:10px 14px; border-bottom:1px solid var(--line-soft); }
+  .rail-scroll { overflow-y:auto; flex:1; min-height:0; }
+  .count { font-family:var(--mono); font-size:11px; color:var(--dim); }
+
+  .session { display:flex; gap:9px; padding:9px 14px; border-bottom:1px solid var(--line-soft);
+             align-items:flex-start; }
+  .session .dot { margin-top:5px; }
+  .session.over { background:var(--accent-soft); box-shadow:inset 2px 0 0 var(--accent); }
+  .s-body { min-width:0; flex:1; }
+  .s-id { font-family:var(--mono); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .s-sub { font-size:11px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .s-task { font-size:11px; color:var(--accent); margin-top:2px;
+            white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .s-age { font-family:var(--mono); font-size:11px; color:var(--dim); margin-top:2px; }
+
+  .board { display:flex; flex-direction:column; min-width:0; min-height:0; }
+  .board-head { display:flex; gap:8px; padding:10px 14px; border-bottom:1px solid var(--line);
+                background:var(--surface); }
+  .board-head input, .board-head select { min-width:0; }
+  #nt-title { flex:2; }
+  #nt-scope { flex:3; font-family:var(--mono); }
+  #nt-assign { flex:1; max-width:180px; }
+  .columns { flex:1; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); min-height:0;
+             gap:8px; padding:0 8px; }
+  .colm { display:flex; flex-direction:column; min-height:0; }
+  .colm > header { display:flex; align-items:center; justify-content:space-between;
+                   padding:10px 6px 6px; }
+  .col-name { display:flex; align-items:center; gap:7px; }
+  .col-name .dot { width:7px; height:7px; }
+  .cd-open { background:var(--off); }
+  .cd-claimed { background:var(--accent); }
+  .cd-review { background:var(--warn); }
+  .cd-done { background:var(--ok); }
+  .c-status { display:flex; justify-content:space-between; align-items:baseline; gap:8px;
+              margin-top:8px; padding-top:7px; border-top:1px solid var(--line-soft);
+              font-size:11px; color:var(--dim); }
+  .c-status .t { font-family:var(--mono); flex:none; }
+  .colm.over { box-shadow:inset 0 0 0 1px var(--accent); background:var(--accent-soft); }
+  .cards { flex:1; overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:8px; min-height:0; }
+
+  .card { background:var(--surface-2); border:1px solid var(--line); border-radius:var(--r-card);
+          padding:9px 10px; cursor:grab; }
+  .card.dragging { opacity:.45; }
+  .c-title { font-weight:600; font-size:13px; }
+  .chip-parent { display:inline-block; font-size:10.5px; color:var(--dim); border:1px solid var(--line);
+                 border-radius:4px; padding:0 5px; margin-top:3px; max-width:100%;
+                 white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .c-scope { font-family:var(--mono); font-size:11px; color:var(--dim); margin-top:4px;
+             white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .c-meta { display:flex; align-items:center; gap:6px; margin-top:6px; }
+  .chip-who { font-family:var(--mono); font-size:10.5px; color:var(--dim); background:var(--surface);
+              border:1px solid var(--line); border-radius:4px; padding:1px 6px; max-width:65%;
+              white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .c-actions { display:none; gap:6px; margin-top:8px; flex-wrap:wrap; }
+  .card:hover .c-actions, .card:focus-within .c-actions { display:flex; }
+  .c-actions select.mini { max-width:110px; }
+
+  .rail-right { border-left:1px solid var(--line); background:var(--surface);
+                display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); }
+  .tab { flex:1; background:none; border:0; border-bottom:2px solid transparent; color:var(--dim);
+         padding:9px 0; font-size:12px; cursor:pointer; }
+  .tab[aria-selected="true"] { color:var(--text); border-bottom-color:var(--text); font-weight:600; }
+  .panel { flex:1; display:flex; flex-direction:column; min-height:0; }
+  #chat { flex:1; overflow-y:auto; padding:10px 14px; min-height:0; }
+  .msg { padding:6px 0; border-bottom:1px solid var(--line-soft); }
+  .msg.direct { box-shadow:inset 2px 0 0 var(--accent); padding-left:8px; }
+  .m-from { font-weight:600; color:var(--accent); font-size:12px; }
+  .msg.hub .m-from { color:var(--dim); }
+  .m-to { color:var(--text); font-size:12px; }
+  .m-time { font-family:var(--mono); color:var(--dim); font-size:10.5px; margin-left:6px; }
+  .m-text { font-size:12.5px; overflow-wrap:anywhere; }
+  .chat-composer { display:flex; gap:8px; padding:10px 14px; border-top:1px solid var(--line); }
+  .chat-composer input { flex:1; }
+  .plan-head { display:flex; align-items:center; gap:8px; padding:10px 14px;
+               border-bottom:1px solid var(--line-soft); }
+  .plan-head .btn { margin-left:auto; }
+  #plan-text { flex:1; overflow-y:auto; padding:12px 14px; white-space:pre-wrap; font-size:12.5px; }
+  .pill { font-size:10px; padding:2px 8px; border-radius:4px; text-transform:uppercase;
+          letter-spacing:.05em; font-weight:600; }
+  .pill.approved { background:var(--ok-soft); color:var(--ok); }
+  .pill.draft { background:var(--warn-soft); color:var(--warn); }
+  #activity { flex:1; overflow-y:auto; padding:8px 14px; min-height:0; }
+  .ev { display:flex; gap:6px; align-items:baseline; font-size:12px; color:var(--dim);
+        padding:5px 0; border-bottom:1px solid var(--line-soft); }
+  .ev b { color:var(--text); font-weight:600; font-family:var(--mono); font-size:11.5px; }
+  .ev-time { margin-left:auto; font-family:var(--mono); font-size:10.5px; flex:none; }
+
+  .empty { margin:16px; border:1px dashed var(--line); border-radius:var(--r-card);
+           padding:22px 16px; text-align:center; color:var(--dim); font-size:12.5px; }
+  .empty-sub { margin-top:4px; font-size:12px; }
+  .empty code { font-family:var(--mono); background:var(--surface-2); padding:2px 6px;
+                border-radius:4px; color:var(--text); display:inline-block; margin-top:8px; }
+
+  #toasts { position:fixed; right:14px; bottom:14px; display:flex; flex-direction:column;
+            gap:8px; z-index:50; }
+  .toast { background:var(--surface-2); border:1px solid var(--line); border-left:3px solid var(--warn);
+           border-radius:var(--r-card); padding:9px 12px; font-size:12.5px; max-width:320px;
+           box-shadow:0 6px 20px rgba(0,0,0,.25); }
+  .toast.ok { border-left-color:var(--ok); }
+
+  .backdrop { position:fixed; inset:0; background:rgba(8,10,14,.55); z-index:40;
+              display:flex; align-items:center; justify-content:center; }
+  .modal { background:var(--surface); border:1px solid var(--line); border-radius:var(--r-card);
+           width:min(460px,92vw); padding:16px; }
+  .modal h3 { margin:0 0 4px; font-size:14px; }
+  .modal-sub { color:var(--dim); font-size:12px; margin:0 0 12px; font-family:var(--mono); }
+  .srow { display:flex; gap:8px; margin-bottom:8px; }
+  .srow input { flex:1; min-width:0; }
+  .srow input.mono { flex:1.2; }
+  .modal-actions { display:flex; gap:8px; margin-top:12px; align-items:center; }
+  .spacer { flex:1; }
+
+  .detail { width:min(520px,92vw); }
+  #d-body { max-height:52vh; overflow-y:auto; }
+  .d-row { display:flex; gap:10px; padding:3px 0; font-size:12.5px; }
+  .d-k { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--dim);
+         font-weight:600; min-width:76px; flex:none; }
+  .d-sec { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--dim);
+           font-weight:600; margin-top:10px; }
+  .d-v { min-width:0; overflow-wrap:anywhere; }
+  .d-scope { font-family:var(--mono); font-size:11.5px; color:var(--dim); margin-top:2px; }
+  .count.wip { color:var(--warn); font-weight:700; }
+  .card:hover { border-color:var(--accent); }
+
+  @media (max-width: 1100px) {
+    body { overflow:auto; }
+    main { display:flex; flex-direction:column; height:auto; }
+    .rail-left { border-right:0; border-bottom:1px solid var(--line); }
+    .rail-left .rail-scroll { max-height:180px; }
+    .board-head { flex-wrap:wrap; }
+    #nt-title, #nt-scope { flex:1 1 200px; }
+    #nt-assign { flex:1 1 140px; max-width:none; }
+    .columns { overflow-x:auto; grid-template-columns:repeat(4, minmax(230px, 1fr)); }
+    .colm { min-height:340px; }
+    .rail-right { border-left:0; border-top:1px solid var(--line); height:440px; }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .btn, .tab, .mini, .card, .session, .c-actions, .colm, input, select {
+      transition:background-color .15s ease, border-color .15s ease, opacity .15s ease,
+                 color .15s ease, box-shadow .15s ease;
+    }
+    @keyframes toast-in { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
+    .toast { animation:toast-in .18s ease; }
+  }
 </style>
 </head>
 <body>
-<header>
-  <h1>⚡ AgentSync</h1>
-  <span class="badge"><span id="conn" class="dot"></span> <span id="connlbl">connecting…</span></span>
-  <span class="badge" id="onlinecount">0 online</span>
+<header class="topbar">
+  <h1 class="brand">&#9889; AgentSync</h1>
+  <span class="status"><span id="conn" class="dot"></span><span id="conn-label">connecting...</span></span>
+  <span class="status mono" id="online-count">0/0 online</span>
+  <span id="sync">no data yet</span>
+  <div class="mgr">
+    <button id="mgr-btn" class="btn" hidden aria-expanded="false" aria-controls="mgr-pop">Unlock manager</button>
+    <span id="mgr-chip" class="chip-mgr" hidden>Manager</span>
+    <form id="mgr-pop" class="pop" hidden>
+      <label class="pop-label" for="mgr-token">Manager token</label>
+      <input id="mgr-token" type="password" autocomplete="off" />
+      <button class="btn primary" type="submit">Unlock</button>
+    </form>
+  </div>
 </header>
+
 <main>
-  <div class="col">
-    <div class="card" style="flex:0 0 auto; max-height:45%;">
-      <h2>Roster</h2>
-      <div id="roster" class="scroll"></div>
-    </div>
-    <div class="card" style="flex:1;">
-      <h2>Plan <span id="planpill"></span></h2>
-      <div id="plan" class="plan scroll">No plan yet.</div>
-    </div>
-  </div>
+  <aside class="rail-left" aria-label="Sessions">
+    <div class="rail-head"><span class="label">Sessions</span><span id="sess-count" class="count"></span></div>
+    <div id="sessions" class="rail-scroll"></div>
+  </aside>
 
-  <div class="col">
-    <div class="card" style="flex:1;">
-      <h2>Team chat</h2>
-      <div id="chat" class="scroll"></div>
-      <div class="composer">
-        <input id="chatin" placeholder="Message the team…" autocomplete="off" />
-        <button id="send">Send</button>
+  <section class="board" aria-label="Task board">
+    <form id="newtask" class="board-head">
+      <input id="nt-title" placeholder="New task title" autocomplete="off" aria-label="New task title" />
+      <input id="nt-scope" placeholder="scope globs, comma separated" autocomplete="off" aria-label="New task scope" />
+      <select id="nt-assign" aria-label="Assign new task to a session"><option value="">Unassigned</option></select>
+      <button class="btn primary" type="submit">Add task</button>
+    </form>
+    <div id="board-empty" class="empty" hidden>No tasks yet. Add one above.</div>
+    <div class="columns" id="columns">
+      <section class="colm" data-status="open" aria-label="Backlog">
+        <header><span class="col-name"><span class="dot cd-open"></span><span class="label">Backlog</span></span><span class="count" id="count-open">0</span></header>
+        <div class="cards" id="cards-open"></div>
+      </section>
+      <section class="colm" data-status="claimed" aria-label="In Progress">
+        <header><span class="col-name"><span class="dot cd-claimed"></span><span class="label">In Progress</span></span><span class="count" id="count-claimed">0</span></header>
+        <div class="cards" id="cards-claimed"></div>
+      </section>
+      <section class="colm" data-status="review" aria-label="Review">
+        <header><span class="col-name"><span class="dot cd-review"></span><span class="label">Review</span></span><span class="count" id="count-review">0</span></header>
+        <div class="cards" id="cards-review"></div>
+      </section>
+      <section class="colm" data-status="done" aria-label="Done">
+        <header><span class="col-name"><span class="dot cd-done"></span><span class="label">Done</span></span><span class="count" id="count-done">0</span></header>
+        <div class="cards" id="cards-done"></div>
+      </section>
+    </div>
+  </section>
+
+  <aside class="rail-right" aria-label="Team panel">
+    <div class="tabs" role="tablist">
+      <button class="tab" id="tab-chat" role="tab" aria-selected="true" aria-controls="panel-chat">Chat</button>
+      <button class="tab" id="tab-plan" role="tab" aria-selected="false" aria-controls="panel-plan">Plan</button>
+      <button class="tab" id="tab-activity" role="tab" aria-selected="false" aria-controls="panel-activity">Activity</button>
+    </div>
+    <section class="panel" id="panel-chat" role="tabpanel" aria-labelledby="tab-chat">
+      <div id="chat"></div>
+      <form class="chat-composer" id="chat-form">
+        <input id="chat-in" placeholder="Message the team..." autocomplete="off" aria-label="Chat message" />
+        <button class="btn primary" type="submit">Send</button>
+      </form>
+    </section>
+    <section class="panel" id="panel-plan" role="tabpanel" aria-labelledby="tab-plan" hidden>
+      <div class="plan-head">
+        <span class="label">Plan</span>
+        <span id="plan-pill"></span>
+        <button id="plan-approve" class="btn primary" hidden>Approve plan</button>
       </div>
-    </div>
-  </div>
-
-  <div class="col">
-    <div class="card" style="flex:1;">
-      <h2>Task board</h2>
-      <div id="board" class="scroll"></div>
-    </div>
-    <div class="card" style="flex:0 0 34%;">
-      <h2>Activity</h2>
-      <div id="timeline" class="timeline scroll"></div>
-    </div>
-  </div>
+      <div id="plan-text"></div>
+    </section>
+    <section class="panel" id="panel-activity" role="tabpanel" aria-labelledby="tab-activity" hidden>
+      <div id="activity"></div>
+    </section>
+  </aside>
 </main>
-<script>
-const state = { members:[], tasks:[], plan:null, messages:[] };
-const $ = (id) => document.getElementById(id);
-const time = (ts) => new Date(ts).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
 
-let ws;
-function connect() {
-  const wsProto = location.protocol === "https:" ? "wss:" : "ws:";
-  ws = new WebSocket(`${wsProto}//${location.host}/ws`);
-  ws.onopen = () => { $("conn").classList.add("on"); $("connlbl").textContent = "live"; };
-  ws.onclose = () => { $("conn").classList.remove("on"); $("connlbl").textContent = "reconnecting…"; setTimeout(connect, 1500); };
-  ws.onmessage = (e) => onMsg(JSON.parse(e.data));
+<div id="toasts" aria-live="polite"></div>
+
+<div id="split-backdrop" class="backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="split-title">
+    <h3 id="split-title">Split task</h3>
+    <p id="split-parent" class="modal-sub"></p>
+    <div id="split-rows"></div>
+    <div class="modal-actions">
+      <button id="split-addrow" class="btn" type="button">Add row</button>
+      <span class="spacer"></span>
+      <button id="split-cancel" class="btn" type="button">Cancel</button>
+      <button id="split-go" class="btn primary" type="button">Split</button>
+    </div>
+  </div>
+</div>
+
+<div id="detail-backdrop" class="backdrop" hidden>
+  <div class="modal detail" role="dialog" aria-modal="true" aria-labelledby="d-title">
+    <h3 id="d-title"></h3>
+    <p id="d-sub" class="modal-sub"></p>
+    <div id="d-body"></div>
+    <div class="modal-actions">
+      <select id="d-assign" class="mini" aria-label="Assign to a session"></select>
+      <select id="d-move" class="mini" aria-label="Move to a column"></select>
+      <button id="d-split" class="mini" type="button">Split</button>
+      <button id="d-del" class="mini" type="button">Delete</button>
+      <span class="spacer"></span>
+      <button id="d-close" class="btn" type="button">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const S = { members:[], tasks:[], plan:null, messages:[], events:[] };
+const COLS = ["open","claimed","review","done"];
+const STALL_MS = 3 * 60 * 1000;
+const LS_KEY = "agentsync-manager-token";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const time = (ts) => new Date(ts).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
+const htmlCache = {};
+function setHtml(id, html) {
+  if (htmlCache[id] === html) return false;
+  htmlCache[id] = html;
+  $(id).innerHTML = html;
+  return true;
 }
+function fmtAge(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  if (s < 60) return s + "s";
+  const m = Math.floor(s / 60); if (m < 60) return m + "m";
+  const h = Math.floor(m / 60); if (h < 48) return h + "h";
+  return Math.floor(h / 24) + "d";
+}
+function emptyHtml(title, sub, code) {
+  return `<div class="empty">${title}` +
+    (sub ? `<div class="empty-sub">${sub}</div>` : "") +
+    (code ? `<code>${code}</code>` : "") + `</div>`;
+}
+
+/* --- connection: websocket + 5s polling --- */
+let ws = null, lastSync = 0, dragTaskId = null;
+let needsToken = false, unlocked = false, adminToken = "", pendingToken = "", authMode = "auto";
+
+function send(obj) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) { toast("Not connected to the hub yet"); return; }
+  ws.send(JSON.stringify(obj));
+}
+function adminField() { return needsToken ? adminToken : ""; }
+function requireAdmin() {
+  if (!needsToken || unlocked) return true;
+  toast("Unlock manager to do that");
+  openMgrPop();
+  return false;
+}
+function adminSend(obj) {
+  if (!requireAdmin()) return;
+  send(Object.assign({}, obj, { admin: adminField() }));
+}
+function markSync() { lastSync = Date.now(); updateSyncLabel(); }
+function updateSyncLabel() {
+  $("sync").textContent = lastSync ? `synced ${fmtAge(Date.now() - lastSync)} ago` : "no data yet";
+}
+function connect() {
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  ws = new WebSocket(`${proto}//${location.host}/ws`);
+  ws.onopen = () => { $("conn").classList.add("on"); $("conn-label").textContent = "live"; };
+  ws.onclose = () => {
+    $("conn").classList.remove("on"); $("conn-label").textContent = "reconnecting...";
+    setTimeout(connect, 1500);
+  };
+  ws.onmessage = (e) => {
+    markSync();
+    let m; try { m = JSON.parse(e.data); } catch { return; }
+    onMsg(m);
+  };
+}
+const RESULT_VERBS = { "assign.result":"Assign", "split.result":"Split", "status.result":"Move", "delete.result":"Delete" };
 function onMsg(m) {
-  if (m.type === "welcome" || m.type === "registered") Object.assign(state, m.state);
-  else if (m.type === "presence") state.members = m.members;
-  else if (m.type === "task.list") state.tasks = m.tasks;
-  else if (m.type === "plan.update") state.plan = m.plan;
-  else if (m.type === "event") applyEvent(m.event);
-  renderAll();
+  if (m.type === "welcome") {
+    const st = m.state || {};
+    S.members = st.members || []; S.tasks = st.tasks || []; S.plan = st.plan || null;
+    S.messages = st.messages || []; S.events = (st.events || []).slice(-100);
+    needsToken = !!m.needsToken;
+    if (!needsToken) { unlocked = true; adminToken = ""; }
+    else {
+      const t = adminToken || localStorage.getItem(LS_KEY) || "";
+      if (t) { pendingToken = t; authMode = "auto"; send({ type:"manager.auth", token:t }); }
+    }
+    renderManager(); renderAll();
+  }
+  else if (m.type === "presence") { S.members = m.members || []; renderAll(); }
+  else if (m.type === "task.list") { S.tasks = m.tasks || []; renderAll(); }
+  else if (m.type === "plan.update") { S.plan = m.plan; renderAll(); }
+  else if (m.type === "event") { applyEvent(m.event); renderAll(); }
+  else if (m.type === "error") { toast(m.message || "Hub error"); }
+  else if (RESULT_VERBS[m.type]) {
+    if (m.ok === false) toast(`${RESULT_VERBS[m.type]} failed: ${m.reason || "rejected by hub"}`);
+  }
+  else if (m.type === "manager.result") {
+    if (m.ok) {
+      unlocked = true; adminToken = pendingToken;
+      try { localStorage.setItem(LS_KEY, adminToken); } catch {}
+      closeMgrPop();
+      if (authMode === "manual") toast("Manager unlocked", "ok");
+    } else {
+      unlocked = false; adminToken = "";
+      try { localStorage.removeItem(LS_KEY); } catch {}
+      toast("Manager token rejected");
+    }
+    authMode = "auto";
+    renderManager();
+  }
 }
 function applyEvent(ev) {
-  if (ev.type === "chat") state.messages.push({ id: ev.seq, from: ev.actor, to: ev.to || null, text: ev.text, ts: ev.ts });
-  if (ev.type === "member.register") { const i = state.members.findIndex(x=>x.id===ev.member.id);
-    if (i<0) state.members.push({...ev.member, online:true}); else state.members[i]={...state.members[i],...ev.member,online:true}; }
-  if (ev.type === "member.presence") { const mm = state.members.find(x=>x.id===ev.memberId); if (mm) mm.online = ev.online; }
-  pushTimeline(ev);
+  if (!ev) return;
+  S.events.push(ev);
+  if (S.events.length > 100) S.events = S.events.slice(-100);
+  if (ev.type === "chat" && !S.messages.some(x => x.id === ev.seq)) {
+    S.messages.push({ id:ev.seq, from:ev.actor, to:ev.to || null, text:ev.text, ts:ev.ts });
+  }
+  if (ev.type === "member.register" && ev.member) {
+    const i = S.members.findIndex(x => x.id === ev.member.id);
+    if (i < 0) S.members.push(Object.assign({}, ev.member, { online:true }));
+    else S.members[i] = Object.assign({}, S.members[i], ev.member, { online:true });
+  }
+  if (ev.type === "member.presence") {
+    const mm = S.members.find(x => x.id === ev.memberId);
+    if (mm) mm.online = ev.online;
+  }
 }
-function pushTimeline(ev) {
-  const label = {
-    "member.register":"joined", "member.presence": ev.online?"online":"offline",
-    "task.add":"added task", "task.claim":"claimed task", "task.release":"released task",
-    "task.complete":"completed task", "plan.set":"set the plan", "plan.approve":"approved the plan",
-    "edit.announce":"announced a push", "chat":null
-  }[ev.type];
-  if (!label) return;
-  const el = document.createElement("div"); el.className = "ev";
-  el.innerHTML = `<b>${ev.actor}</b> ${label} <span style="float:right">${time(ev.ts)}</span>`;
-  $("timeline").prepend(el);
-  while ($("timeline").childElementCount > 60) $("timeline").lastChild.remove();
+async function poll() {
+  try {
+    const r = await fetch("/state");
+    if (!r.ok) return;
+    const st = await r.json();
+    S.members = st.members || []; S.tasks = st.tasks || []; S.plan = st.plan || null;
+    S.messages = st.messages || []; S.events = (st.events || []).slice(-100);
+    markSync(); renderAll();
+  } catch {}
 }
-function renderAll() { renderRoster(); renderPlan(); renderChat(); renderBoard(); }
-function renderRoster() {
-  const online = state.members.filter(m=>m.online).length;
-  $("onlinecount").textContent = `${online} online · ${state.members.length} members`;
-  $("roster").innerHTML = state.members
-    .sort((a,b)=> (b.online-a.online) || a.id.localeCompare(b.id))
-    .map(m => `<div class="member"><span class="dot ${m.online?"on":""}"></span>
-      <span class="who">${m.person||m.id}</span>
-      <span class="role">${m.agentKind||"human"}${m.role?" · "+m.role:""}</span></div>`).join("") || "<div style='color:var(--dim)'>Nobody here yet.</div>";
+
+/* --- sessions rail --- */
+function lastActivity(m) {
+  let t = m.lastBeat || 0;
+  for (const ev of S.events) if (ev.actor === m.id && ev.ts > t) t = ev.ts;
+  return t || m.joinedAt || 0;
 }
-function renderPlan() {
-  $("plan").textContent = state.plan?.text || "No plan yet.";
-  $("planpill").innerHTML = state.plan ? `<span class="pill ${state.plan.status}">${state.plan.status}</span>` : "";
+function claimedTaskOf(m) {
+  return S.tasks.find(t => t.status === "claimed" && (t.owner === m.id || t.assignee === m.id));
 }
-function renderChat() {
-  $("chat").innerHTML = state.messages.slice(-200).map(mm =>
-    `<div class="msg ${mm.from==="hub"?"hub":""} ${mm.to?"direct":""}"><span class="from">${mm.from}${mm.to?` <span class="to">→ ${mm.to}</span>`:""}</span>
-     <span class="t">${time(mm.ts)}</span><div>${escapeHtml(mm.text)}</div></div>`).join("");
-  $("chat").scrollTop = $("chat").scrollHeight;
+function sessionState(m) {
+  if (!m.online) return "off";
+  if (claimedTaskOf(m) && Date.now() - lastActivity(m) > STALL_MS) return "stall";
+  return "on";
+}
+function renderSessions() {
+  const members = S.members.slice().sort((a,b) => (b.online - a.online) || String(a.id).localeCompare(String(b.id)));
+  $("sess-count").textContent = members.length || "";
+  if (!members.length) {
+    setHtml("sessions", emptyHtml("No sessions connected", "Join from any terminal:", "npx agentsync join &lt;hub-url&gt;"));
+    return;
+  }
+  setHtml("sessions", members.map(m => {
+    const st = sessionState(m);
+    const stLabel = st === "on" ? "online" : st === "stall" ? "stalled" : "offline";
+    const sub = [m.person, m.agentKind, m.role].filter(Boolean).join(" / ");
+    const task = claimedTaskOf(m);
+    const act = lastActivity(m);
+    return `<div class="session" data-mid="${esc(m.id)}">
+      <span class="dot ${st === "off" ? "" : st}" role="img" aria-label="${stLabel}"></span>
+      <div class="s-body">
+        <div class="s-id" title="${esc(m.id)}">${esc(m.id)}</div>
+        ${sub ? `<div class="s-sub" title="${esc(sub)}">${esc(sub)}</div>` : ""}
+        ${task ? `<div class="s-task" title="${esc(task.title)}">${esc(task.title)}</div>` : ""}
+      </div>
+      <span class="s-age" aria-label="last active">${act ? fmtAge(Date.now() - act) : "-"}</span>
+    </div>`;
+  }).join(""));
+}
+
+/* --- kanban board --- */
+function memberOptions(selected) {
+  return S.members.filter(m => m.online)
+    .map(m => `<option value="${esc(m.id)}"${m.id === selected ? " selected" : ""}>${esc(m.id)}</option>`).join("");
+}
+function cardHtml(t) {
+  const who = t.assignee || t.owner || "";
+  const parent = t.parent ? S.tasks.find(x => x.id === t.parent) : null;
+  const scope = (t.scope || []).join(", ");
+  const ev = lastTaskEvent(t);
+  const verb = ev ? (CARD_VERBS[ev.type] || "") : "";
+  const ts = (ev && ev.ts) || t.claimedAt || 0;
+  return `<article class="card" draggable="true" tabindex="0" data-id="${esc(t.id)}" aria-label="Open task ${esc(t.title)}">
+    <div class="c-title">${esc(t.title)}</div>
+    ${parent ? `<span class="chip-parent" title="split from ${esc(parent.title)}">from ${esc(parent.title)}</span>` : ""}
+    ${scope ? `<div class="c-scope" title="${esc(scope)}">${esc(scope)}</div>` : ""}
+    ${who ? `<div class="c-meta"><span class="chip-who" title="${esc(who)}">${esc(who)}</span></div>` : ""}
+    ${verb && ts ? `<div class="c-status"><span>${verb}</span><span class="t">${fmtAge(Date.now() - ts)} ago</span></div>` : ""}
+  </article>`;
+}
+const CARD_VERBS = {
+  "task.add":"added", "task.claim":"claimed", "task.release":"released", "task.complete":"completed",
+  "task.assign":"assigned", "task.split":"split", "task.status":"moved", "edit.announce":"push announced"
+};
+function lastTaskEvent(t) {
+  for (let i = S.events.length - 1; i >= 0; i--) {
+    const ev = S.events[i];
+    if (ev.taskId === t.id || (ev.task && ev.task.id === t.id)) return ev;
+  }
+  return null;
+}
+function statusOptions(current) {
+  return [["open","Backlog"],["claimed","In Progress"],["review","Review"],["done","Done"]]
+    .map(([v,l]) => `<option value="${v}"${current === v ? " selected" : ""}>${l}</option>`).join("");
 }
 function renderBoard() {
-  const groups = { open:[], claimed:[], done:[] };
-  for (const t of state.tasks) (groups[t.status]||groups.open).push(t);
-  const g = (name, items) => !items.length ? "" :
-    `<div class="board-group"><h3>${name} (${items.length})</h3>` + items.map(t =>
-      `<div class="task ${t.status}"><div class="ttl">${escapeHtml(t.title)}</div>
-       <div class="meta">${t.owner?("👤 "+t.owner):"unclaimed"}${t.role?" · "+t.role:""}</div>
-       <div class="scope">${(t.scope||[]).join("  ")}</div></div>`).join("") + `</div>`;
-  $("board").innerHTML = g("Claimed", groups.claimed) + g("Open", groups.open) + g("Done", groups.done)
-    || "<div style='color:var(--dim)'>No tasks yet.</div>";
+  const visible = S.tasks.filter(t => t.status !== "split");
+  const byStatus = { open:[], claimed:[], review:[], done:[] };
+  for (const t of visible) (byStatus[t.status] || byStatus.open).push(t);
+  for (const st of COLS) {
+    $("count-" + st).textContent = byStatus[st].length;
+    setHtml("cards-" + st, byStatus[st].map(cardHtml).join(""));
+  }
+  const online = S.members.filter(m => m.online).length;
+  const over = byStatus.claimed.length > online;
+  $("count-claimed").classList.toggle("wip", over);
+  $("count-claimed").title = over ? `${byStatus.claimed.length} in progress for ${online} online sessions` : "";
+  $("board-empty").hidden = visible.length > 0;
 }
-function escapeHtml(s){ return String(s).replace(/[&<>]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+function moveTask(taskId, status) {
+  const t = S.tasks.find(x => x.id === taskId);
+  if (!t || t.status === status) return;
+  if (status === "claimed" && !t.assignee && !t.owner) { toast("assign a session first"); return; }
+  adminSend({ type:"task.status", taskId, status });
+}
 
-$("send").onclick = sendChat;
-$("chatin").addEventListener("keydown", e => { if (e.key === "Enter") sendChat(); });
-function sendChat() {
-  const t = $("chatin").value.trim(); if (!t) return;
-  ws.send(JSON.stringify({ type:"chat", text:t, from:"dashboard" })); $("chatin").value = "";
+/* --- drag and drop --- */
+const columnsEl = $("columns"), sessionsEl = $("sessions");
+columnsEl.addEventListener("dragstart", (e) => {
+  const card = e.target.closest(".card"); if (!card) return;
+  dragTaskId = card.dataset.id;
+  card.classList.add("dragging");
+  e.dataTransfer.setData("text/plain", dragTaskId);
+  e.dataTransfer.effectAllowed = "move";
+});
+document.addEventListener("dragend", () => {
+  dragTaskId = null;
+  document.querySelectorAll(".dragging").forEach(el => el.classList.remove("dragging"));
+  document.querySelectorAll(".over").forEach(el => el.classList.remove("over"));
+});
+columnsEl.addEventListener("dragover", (e) => {
+  const col = e.target.closest(".colm"); if (!col || !dragTaskId) return;
+  e.preventDefault(); e.dataTransfer.dropEffect = "move";
+  col.classList.add("over");
+});
+columnsEl.addEventListener("dragleave", (e) => {
+  const col = e.target.closest(".colm");
+  if (col && !col.contains(e.relatedTarget)) col.classList.remove("over");
+});
+columnsEl.addEventListener("drop", (e) => {
+  const col = e.target.closest(".colm"); if (!col) return;
+  e.preventDefault(); col.classList.remove("over");
+  const id = e.dataTransfer.getData("text/plain") || dragTaskId;
+  if (id) moveTask(id, col.dataset.status);
+});
+sessionsEl.addEventListener("dragover", (e) => {
+  const row = e.target.closest(".session"); if (!row || !dragTaskId) return;
+  e.preventDefault(); e.dataTransfer.dropEffect = "move";
+  row.classList.add("over");
+});
+sessionsEl.addEventListener("dragleave", (e) => {
+  const row = e.target.closest(".session");
+  if (row && !row.contains(e.relatedTarget)) row.classList.remove("over");
+});
+sessionsEl.addEventListener("drop", (e) => {
+  const row = e.target.closest(".session"); if (!row) return;
+  e.preventDefault(); row.classList.remove("over");
+  const id = e.dataTransfer.getData("text/plain") || dragTaskId;
+  if (id) adminSend({ type:"task.assign", taskId:id, memberId:row.dataset.mid });
+});
+
+/* --- card detail (Wekan-style: click a card for everything) --- */
+let detailTaskId = null;
+function detailBody(t) {
+  const parent = t.parent ? S.tasks.find(x => x.id === t.parent) : null;
+  const kids = S.tasks.filter(x => x.parent === t.id);
+  const evs = S.events.filter(ev => ev.taskId === t.id || (ev.task && ev.task.id === t.id)).slice(-20).reverse();
+  const row = (k, v) => v ? `<div class="d-row"><span class="d-k">${k}</span><span class="d-v">${v}</span></div>` : "";
+  return row("Status", `<span class="mono">${esc(t.status)}</span>`)
+    + row("Assignee", t.assignee ? `<span class="mono">${esc(t.assignee)}</span>` : "")
+    + row("Owner", t.owner ? `<span class="mono">${esc(t.owner)}</span>` : "")
+    + row("Split from", parent ? esc(parent.title) : "")
+    + row("Subtasks", kids.length ? kids.map(k => esc(k.title)).join(", ") : "")
+    + ((t.scope || []).length ? `<div class="d-sec">Scope</div><div class="d-scope">${(t.scope || []).map(esc).join("<br>")}</div>` : "")
+    + (evs.length ? `<div class="d-sec">Activity</div>` + evs.map(ev =>
+        `<div class="ev"><b>${esc(ev.actor || "hub")}</b><span>${esc(evLabel(ev))}</span><span class="ev-time">${time(ev.ts)}</span></div>`).join("") : "");
 }
+function renderDetail() {
+  const t = S.tasks.find(x => x.id === detailTaskId);
+  if (!t || t.status === "split") { closeDetail(); return; }
+  $("d-title").textContent = t.title;
+  $("d-sub").textContent = t.id;
+  $("d-body").innerHTML = detailBody(t);
+  const active = document.activeElement;
+  if (!(active && $("detail-backdrop").contains(active) && active.tagName === "SELECT")) {
+    $("d-assign").innerHTML = `<option value="">Assign...</option>` + memberOptions("");
+    $("d-move").innerHTML = statusOptions(t.status);
+  }
+}
+function openDetail(id) {
+  if (!S.tasks.some(x => x.id === id)) return;
+  detailTaskId = id;
+  renderDetail();
+  if (!detailTaskId) return;
+  $("detail-backdrop").hidden = false;
+  $("d-close").focus();
+}
+function closeDetail() { $("detail-backdrop").hidden = true; detailTaskId = null; }
+columnsEl.addEventListener("click", (e) => {
+  const card = e.target.closest(".card");
+  if (card) openDetail(card.dataset.id);
+});
+columnsEl.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  const card = e.target.closest(".card");
+  if (card) openDetail(card.dataset.id);
+});
+$("d-assign").addEventListener("change", (e) => {
+  if (e.target.value) adminSend({ type:"task.assign", taskId:detailTaskId, memberId:e.target.value });
+  e.target.value = "";
+});
+$("d-move").addEventListener("change", (e) => {
+  const t = S.tasks.find(x => x.id === detailTaskId);
+  const wanted = e.target.value;
+  if (t) e.target.value = t.status;
+  moveTask(detailTaskId, wanted);
+});
+$("d-split").addEventListener("click", () => { const id = detailTaskId; closeDetail(); openSplit(id); });
+$("d-del").addEventListener("click", () => {
+  const t = S.tasks.find(x => x.id === detailTaskId);
+  if (t && confirm(`Delete task "${t.title}"?`)) { adminSend({ type:"task.delete", taskId:t.id }); closeDetail(); }
+});
+$("d-close").addEventListener("click", closeDetail);
+$("detail-backdrop").addEventListener("mousedown", (e) => { if (e.target === $("detail-backdrop")) closeDetail(); });
+
+/* --- new task composer --- */
+function slugify(s) {
+  return String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "task";
+}
+$("newtask").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const title = $("nt-title").value.trim(); if (!title) return;
+  const scope = $("nt-scope").value.split(",").map(s => s.trim()).filter(Boolean);
+  const base = slugify(title);
+  let id = base, n = 2;
+  while (S.tasks.some(t => t.id === id)) id = `${base}-${n++}`;
+  send({ type:"task.add", task:{ id, title, scope } });
+  const who = $("nt-assign").value;
+  if (who) adminSend({ type:"task.assign", taskId:id, memberId:who });
+  $("nt-title").value = ""; $("nt-scope").value = ""; $("nt-assign").value = "";
+});
+function updateNtAssign() {
+  const sel = $("nt-assign");
+  if (document.activeElement === sel) return;
+  const html = `<option value="">Unassigned</option>` + memberOptions("");
+  if (htmlCache["nt-assign"] === html) return;
+  htmlCache["nt-assign"] = html;
+  const prev = sel.value;
+  sel.innerHTML = html;
+  sel.value = prev;
+  if (sel.value !== prev) sel.value = "";
+}
+
+/* --- right rail: tabs, chat, plan, activity --- */
+const TABS = ["chat", "plan", "activity"];
+function activateTab(name) {
+  for (const t of TABS) {
+    $("tab-" + t).setAttribute("aria-selected", String(t === name));
+    $("panel-" + t).hidden = t !== name;
+  }
+  if (name === "chat") $("chat").scrollTop = $("chat").scrollHeight;
+}
+TABS.forEach(t => $("tab-" + t).addEventListener("click", () => activateTab(t)));
+
+function msgHtml(mm) {
+  return `<div class="msg${mm.from === "hub" ? " hub" : ""}${mm.to ? " direct" : ""}">
+    <span class="m-from">${esc(mm.from)}</span>${mm.to ? ` <span class="m-to">&rarr; ${esc(mm.to)}</span>` : ""}
+    <span class="m-time">${time(mm.ts)}</span>
+    <div class="m-text">${esc(mm.text)}</div>
+  </div>`;
+}
+function renderChat() {
+  const el = $("chat");
+  const near = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+  const html = S.messages.length
+    ? S.messages.slice(-200).map(msgHtml).join("")
+    : emptyHtml("No messages yet", "Say something below to reach every session.");
+  if (setHtml("chat", html) && near) el.scrollTop = el.scrollHeight;
+}
+$("chat-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const t = $("chat-in").value.trim(); if (!t) return;
+  send({ type:"chat", text:t, from:"dashboard" });
+  $("chat-in").value = "";
+});
+
+function renderPlan() {
+  const p = S.plan;
+  setHtml("plan-pill", p ? `<span class="pill ${p.status}">${esc(p.status)}</span>` : "");
+  $("plan-approve").hidden = !(p && p.status === "draft");
+  const text = p && p.text ? p.text : "";
+  if (htmlCache["plan-text-raw"] !== text) {
+    htmlCache["plan-text-raw"] = text;
+    if (text) { $("plan-text").textContent = text; }
+    else { $("plan-text").innerHTML = emptyHtml("No plan yet", "Sessions can propose one from the hub."); }
+  }
+}
+$("plan-approve").addEventListener("click", () => send({ type:"plan.approve" }));
+
+const EV_LABELS = {
+  "member.register":"joined", "task.add":"added a task", "task.claim":"claimed a task",
+  "task.release":"released a task", "task.complete":"completed a task", "task.assign":"assigned a task",
+  "task.split":"split a task", "task.status":"moved a task", "task.delete":"deleted a task",
+  "plan.set":"set the plan", "plan.approve":"approved the plan", "edit.announce":"announced a push"
+};
+function evLabel(ev) {
+  if (ev.type === "member.presence") return ev.online ? "came online" : "went offline";
+  return EV_LABELS[ev.type] || ev.type;
+}
+function renderActivity() {
+  const evs = S.events.filter(ev => ev.type !== "chat").slice(-100).reverse();
+  const html = evs.length
+    ? evs.map(ev => {
+        const ref = ev.taskId || (ev.task && ev.task.id) || "";
+        return `<div class="ev"><b>${esc(ev.actor || "hub")}</b><span>${esc(evLabel(ev))}${ref ? ` <span class="mono">${esc(ref)}</span>` : ""}</span><span class="ev-time">${time(ev.ts)}</span></div>`;
+      }).join("")
+    : emptyHtml("No activity yet", "Hub events will show up here.");
+  setHtml("activity", html);
+}
+
+/* --- split modal --- */
+let splitTaskId = null;
+function splitRow() {
+  const row = document.createElement("div");
+  row.className = "srow";
+  row.innerHTML = `<input type="text" placeholder="Subtask title" autocomplete="off" aria-label="Subtask title" />` +
+    `<input type="text" class="mono" placeholder="scope globs, comma separated" autocomplete="off" aria-label="Subtask scope" />`;
+  $("split-rows").appendChild(row);
+}
+function openSplit(taskId) {
+  const t = S.tasks.find(x => x.id === taskId); if (!t) return;
+  splitTaskId = taskId;
+  $("split-parent").textContent = t.title;
+  $("split-rows").innerHTML = "";
+  splitRow(); splitRow();
+  $("split-backdrop").hidden = false;
+  $("split-rows").querySelector("input").focus();
+}
+function closeSplit() { $("split-backdrop").hidden = true; splitTaskId = null; }
+$("split-addrow").addEventListener("click", splitRow);
+$("split-cancel").addEventListener("click", closeSplit);
+$("split-backdrop").addEventListener("mousedown", (e) => { if (e.target === $("split-backdrop")) closeSplit(); });
+$("split-go").addEventListener("click", () => {
+  const subtasks = [];
+  for (const row of $("split-rows").children) {
+    const [ti, si] = row.querySelectorAll("input");
+    const title = ti.value.trim(); if (!title) continue;
+    subtasks.push({ title, scope: si.value.split(",").map(s => s.trim()).filter(Boolean) });
+  }
+  if (subtasks.length < 2) { toast("Give at least 2 subtasks a title"); return; }
+  adminSend({ type:"task.split", taskId:splitTaskId, subtasks });
+  closeSplit();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  if (!$("split-backdrop").hidden) closeSplit();
+  else if (!$("detail-backdrop").hidden) closeDetail();
+  else if (!$("mgr-pop").hidden) closeMgrPop();
+});
+
+/* --- manager unlock --- */
+function renderManager() {
+  $("mgr-btn").hidden = !(needsToken && !unlocked);
+  $("mgr-chip").hidden = !(needsToken && unlocked);
+  if ($("mgr-btn").hidden) closeMgrPop();
+}
+function openMgrPop() {
+  if ($("mgr-btn").hidden) return;
+  $("mgr-pop").hidden = false;
+  $("mgr-btn").setAttribute("aria-expanded", "true");
+  $("mgr-token").focus();
+}
+function closeMgrPop() {
+  $("mgr-pop").hidden = true;
+  $("mgr-btn").setAttribute("aria-expanded", "false");
+}
+$("mgr-btn").addEventListener("click", () => { $("mgr-pop").hidden ? openMgrPop() : closeMgrPop(); });
+$("mgr-pop").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const token = $("mgr-token").value.trim(); if (!token) return;
+  pendingToken = token; authMode = "manual";
+  send({ type:"manager.auth", token });
+  $("mgr-token").value = "";
+});
+
+/* --- toasts --- */
+function toast(msg, kind) {
+  const box = $("toasts");
+  const el = document.createElement("div");
+  el.className = "toast" + (kind === "ok" ? " ok" : "");
+  el.textContent = msg;
+  box.appendChild(el);
+  while (box.childElementCount > 4) box.firstChild.remove();
+  setTimeout(() => el.remove(), 4000);
+}
+
+/* --- render root + timers --- */
+function renderTop() {
+  const online = S.members.filter(m => m.online).length;
+  $("online-count").textContent = `${online}/${S.members.length} online`;
+}
+function renderAll() {
+  renderTop(); renderSessions(); renderBoard(); renderChat(); renderPlan(); renderActivity(); updateNtAssign();
+  if (detailTaskId) renderDetail();
+}
+let tick = 0;
+setInterval(() => {
+  tick++;
+  updateSyncLabel();
+  if (tick % 10 === 0) { renderSessions(); renderBoard(); }
+}, 1000);
+setInterval(poll, 5000);
 connect();
+poll();
 </script>
 </body>
 </html>

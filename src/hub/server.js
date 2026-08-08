@@ -52,8 +52,16 @@ export function startHub({ port = 7777, token = "", logPath }) {
     return ev;
   }
 
+  // Manager ops are allowed when: no hub token configured, the caller supplied it
+  // as m.admin, or the registered sender has a manager/orchestrator role.
+  function isAdmin(ws, m) {
+    if (!token || m.admin === token) return true;
+    const mem = store.members.get(clients.get(ws));
+    return mem?.role === "manager" || mem?.role === "orchestrator";
+  }
+
   wss.on("connection", (ws) => {
-    send(ws, { type: "welcome", state: store.snapshot() });
+    send(ws, { type: "welcome", state: store.snapshot(), needsToken: !!token });
 
     ws.on("message", (raw) => {
       let m;
@@ -75,13 +83,22 @@ export function startHub({ port = 7777, token = "", logPath }) {
     });
   });
 
+  const ADMIN_OPS = { "task.assign": "assign", "task.split": "split", "task.status": "status", "task.delete": "delete" };
+
   function handle(ws, m) {
+    const op = ADMIN_OPS[m.type];
+    if (op) {
+      if (!isAdmin(ws, m))
+        return send(ws, { type: op + ".result", taskId: m.taskId, ok: false, reason: "manager token or orchestrator role required" });
+      if (!store.tasks.has(m.taskId))
+        return send(ws, { type: op + ".result", taskId: m.taskId, ok: false, reason: "no such task" });
+    }
     switch (m.type) {
       case "register": {
         if (token && m.token !== token) return send(ws, { type: "error", message: "bad token" });
         clients.set(ws, m.member.id);
         emit("member.register", { member: m.member }, m.member.id);
-        send(ws, { type: "registered", member: m.member, state: store.snapshot() });
+        send(ws, { type: "registered", member: m.member, state: store.snapshot(), needsToken: !!token });
         break;
       }
       case "heartbeat": {
@@ -127,6 +144,50 @@ export function startHub({ port = 7777, token = "", logPath }) {
       case "task.complete":
         emit("task.complete", { taskId: m.taskId }, clients.get(ws));
         broadcast({ type: "task.list", tasks: [...store.tasks.values()] });
+        break;
+      case "task.assign": {
+        const t = store.tasks.get(m.taskId);
+        emit("task.assign", { taskId: m.taskId, memberId: m.memberId }, clients.get(ws) || "human");
+        emit("chat", { text: `📋 ${m.memberId}: you've been assigned "${t.title}" (${m.taskId}). claim_task it when you pick it up.`, to: m.memberId }, "hub");
+        broadcast({ type: "task.list", tasks: [...store.tasks.values()] });
+        send(ws, { type: "assign.result", taskId: m.taskId, ok: true });
+        break;
+      }
+      case "task.status": {
+        const t = store.tasks.get(m.taskId);
+        if (!["open", "claimed", "review", "done"].includes(m.status))
+          return send(ws, { type: "status.result", taskId: m.taskId, ok: false, reason: "bad status" });
+        if (m.status === "claimed" && !m.memberId && !t.assignee)
+          return send(ws, { type: "status.result", taskId: m.taskId, ok: false, reason: "assign a session first" });
+        emit("task.status", { taskId: m.taskId, status: m.status, memberId: m.memberId || null }, clients.get(ws) || "human");
+        broadcast({ type: "task.list", tasks: [...store.tasks.values()] });
+        send(ws, { type: "status.result", taskId: m.taskId, ok: true });
+        break;
+      }
+      case "task.split": {
+        const t = store.tasks.get(m.taskId);
+        const subs = Array.isArray(m.subtasks) ? m.subtasks : [];
+        if (!subs.length || subs.length > 8 || subs.some((s) => typeof s?.title !== "string" || !s.title.trim()))
+          return send(ws, { type: "split.result", taskId: m.taskId, ok: false, reason: "bad subtasks" });
+        // event carries fully-built subtasks so log replay rebuilds identical state
+        const built = subs.map((s, i) => {
+          let id = `${m.taskId}-${i + 1}`, n = 2;
+          while (store.tasks.has(id)) id = `${m.taskId}-${i + 1}-${n++}`;
+          return { id, title: s.title, scope: s.scope || [], parent: m.taskId, role: t.role };
+        });
+        emit("task.split", { taskId: m.taskId, subtasks: built }, clients.get(ws) || "human");
+        emit("chat", { text: `🔀 split "${t.title}" into ${built.length} tasks`, to: null }, "hub");
+        broadcast({ type: "task.list", tasks: [...store.tasks.values()] });
+        send(ws, { type: "split.result", taskId: m.taskId, ok: true, ids: built.map((s) => s.id) });
+        break;
+      }
+      case "task.delete":
+        emit("task.delete", { taskId: m.taskId }, clients.get(ws) || "human");
+        broadcast({ type: "task.list", tasks: [...store.tasks.values()] });
+        send(ws, { type: "delete.result", taskId: m.taskId, ok: true });
+        break;
+      case "manager.auth":
+        send(ws, { type: "manager.result", ok: !token || m.token === token });
         break;
       case "conflict.check": {
         const id = clients.get(ws);

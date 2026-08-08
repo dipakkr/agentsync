@@ -19,6 +19,15 @@ blocks git — so the moment you see an overlap, coordinate in chat before you e
    file scope) instead of coding blind.
 2. `list_tasks` → pick an unclaimed task matching your role → `claim_task`.
    - If the claim **warns of an overlap**, STOP and coordinate in chat first.
+3. Tasks may be **assigned** to you by a manager: check `list_tasks` for tasks whose
+   `assignee` is your id, and watch `read_messages` for 📋 assignment notifications.
+   Claim assigned tasks first — they're yours to pick up.
+
+### If you are the orchestrator/manager
+Registered with role `orchestrator` or `manager`, you can also direct the work:
+`split_task` oversized tasks into scoped subtasks, `assign_task` them to idle members,
+and `update_task_status` to move work to review/done. Narrate handoffs in chat and keep
+the humans' dashboard as the source of truth.
 
 ### While working
 - Stay inside your claimed task's file scope, on your own branch (`<person>/<agent>/<slug>`).
@@ -42,5 +51,6 @@ blocks git — so the moment you see an overlap, coordinate in chat before you e
 ### Your AgentSync tools
 `agentsync_register` · `get_plan` · `set_plan` · `approve_plan` · `list_members` ·
 `list_tasks` · `add_task` · `claim_task` · `release_task` · `complete_task` ·
+`assign_task` · `split_task` · `update_task_status` ·
 `check_conflicts` · `announce_edit` · `post_message` · `read_messages`
 <!-- agentsync:end -->

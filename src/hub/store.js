@@ -75,8 +75,39 @@ export class Store {
         this.tasks.set(ev.task.id, {
           status: "open",
           owner: null,
+          assignee: null,
           ...ev.task,
         });
+        break;
+      case "task.assign": {
+        const t = this.tasks.get(ev.taskId);
+        if (t) t.assignee = ev.memberId;
+        break;
+      }
+      case "task.status": {
+        const t = this.tasks.get(ev.taskId);
+        if (t) {
+          t.status = ev.status;
+          if (ev.status === "open") t.owner = null;
+          if (ev.status === "claimed") {
+            t.owner = ev.memberId || t.assignee;
+            t.claimedAt = ev.ts;
+          }
+          // review/done keep the owner
+        }
+        break;
+      }
+      case "task.split": {
+        // event carries the fully-built subtask objects so replay rebuilds identically
+        for (const s of ev.subtasks || []) {
+          this.tasks.set(s.id, { status: "open", owner: null, assignee: null, ...s });
+        }
+        const t = this.tasks.get(ev.taskId);
+        if (t) t.status = "split";
+        break;
+      }
+      case "task.delete":
+        this.tasks.delete(ev.taskId);
         break;
       case "task.claim": {
         const t = this.tasks.get(ev.taskId);
