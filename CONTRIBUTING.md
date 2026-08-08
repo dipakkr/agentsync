@@ -39,6 +39,11 @@ AGENTSYNC_KEEP=1 npm run demo   # terminal 2
 | `src/lib/` | shared hub client |
 | `hooks/` | git hooks (pre-push, pre-commit) |
 
+Deeper references live in `docs/`: [MCP tools](./docs/mcp-tools.md) ·
+[configuration](./docs/configuration.md) · [hub HTTP/WS API](./docs/hub-api.md) ·
+[deployment](./docs/deployment.md). If you touch the protocol, the tools, or the
+config surface, update the matching page in the same PR.
+
 ## Good first issues
 
 - Git-branch transport for the no-infra fallback scenario

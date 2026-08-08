@@ -31,7 +31,11 @@ not ask again.
 
 - Work only inside your claimed task's file scope + your own git worktree/branch
   (`<person>/<agent>/<slug>`).
-- `post_message` when you start, finish, or get blocked. Keep the team aware.
+- `post_message` when you start, finish, or get blocked. Keep the team aware. Address
+  one member directly with `to: "<their-id>"`; leave `to` empty to tell everyone.
+- `read_messages` to receive replies — the hub never pushes chat at you, you pull it.
+  Pass the `max_id` from your last read as `since_id` to get only what's new. Check it
+  when you start a task, when you're blocked, and before you push.
 - Commit small and often. Never commit protected paths (`.env`, `*.key`, `secrets.*`).
 
 ## 4. Before you push

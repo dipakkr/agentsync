@@ -93,7 +93,8 @@ npx agentsync hub
 ```
 
 Open the Dashboard URL. For a distributed team, deploy the same command on any host
-(VPS/container) and put its URL in `agentsync.config.yaml` → `hub_url`.
+(VPS/container) and put its URL in `agentsync.config.yaml` → `hub_url` — see
+**[docs/deployment.md](./docs/deployment.md)** for Railway, VPS, and Docker recipes.
 
 ### 2. Everyone else joins from their clone
 
@@ -107,8 +108,16 @@ npx agentsync join http://192.168.1.20:7777
 #   ✓ Joined as deepak.mac-a.claude (backend)
 ```
 
+Scripting it (CI, agent bootstrap, or you just hate prompts)? Pass the answers as flags
+and `join` runs fully non-interactive:
+
+```bash
+npx agentsync join http://192.168.1.20:7777 --name deepak --machine mac-a --agent claude --role backend
+```
+
 `join` writes your identity, **auto-configures your agent's MCP** (`.mcp.json` for Claude
 Code; prints the Codex `config.toml` snippet), and installs the git hooks. That's it.
+If `hub_url` is set in `agentsync.config.yaml`, the URL argument is optional too.
 
 ### 3. Agents self-onboard
 
@@ -175,16 +184,46 @@ and an **overlap warning** fires when one agent claims files another already own
 
 ---
 
+## CLI reference
+
+```
+agentsync up [--hub <url>] [--token <secret>]
+agentsync invite
+agentsync init [--hub <url>]
+agentsync hub [--port 7777] [--token <secret>] [--log <path>]
+agentsync join [<hub-url>] [--name <you> --machine <label> --agent <kind> --role <role>] [--token <secret>]
+agentsync status [<hub-url>]
+agentsync whoami
+agentsync mcp
+```
+
+| Command | What it does | Flags & environment |
+|---|---|---|
+| `up` | ⭐ Zero to live in one command: init + hub + join + dashboard + invite line | `--hub <url>` to use an already-deployed hub instead of starting a local one · `--token` |
+| `invite` | Reprint the one-line join command for teammates | — |
+| `init` | Make this repo AgentSync-aware: `agentsync.config.yaml`, `AGENTS.md` agent guide, `CLAUDE.md` pointer, gitignore `.agentsync/`. Idempotent | `--hub <url>` bakes the hub URL into the config |
+| `hub` | Start the hub + dashboard | `--port` (or `PORT` env, default 7777) · `--token` (or `AGENTSYNC_TOKEN`) requires the secret to register · `--log` event-log path (default `.agentsync/events.ndjson`) |
+| `join` | Onboard this clone: write identity, configure MCP, install git hooks | URL defaults to `hub_url` in `agentsync.config.yaml`. Omit `--name` for interactive prompts; pass `--name --machine --agent --role` to script it. `--token` if the hub requires one |
+| `status` | Print roster, tasks, and plan state from any hub | URL defaults to your joined hub |
+| `whoami` | Show the identity this clone joined as | reads `.agentsync/identity.json` |
+| `mcp` | Run the MCP stdio server (what your agent's `.mcp.json` launches) | `AGENTSYNC_HUB`, `AGENTSYNC_TOKEN` |
+| `announce` / `guard-commit` | Internal — called by the installed pre-push / pre-commit hooks | — |
+
 ## MCP tools agents get
 
 `agentsync_register` · `get_plan` · `set_plan` · `approve_plan` · `list_members` ·
 `list_tasks` · `add_task` · `claim_task` · `release_task` · `complete_task` ·
-`check_conflicts` · `announce_edit` · `post_message`
+`check_conflicts` · `announce_edit` · `post_message` · `read_messages`
+
+Full parameters, return shapes, and an end-to-end agent session:
+**[docs/mcp-tools.md](./docs/mcp-tools.md)**.
 
 ## Configuration — `agentsync.config.yaml`
 
 Roles, `hot_files` (extra-warned shared files), `protected_paths` (commit deny-list), and
 the branch template all live here, committed as the team's shared rules of engagement.
+Every key, plus `identity.json` and the environment variables, is documented in
+**[docs/configuration.md](./docs/configuration.md)**.
 
 ## Architecture
 
@@ -196,6 +235,21 @@ apps            src/hub/      HTTP + WebSocket + event-sourced store (NDJSON)
                 src/lib/      shared hub client (Node global WebSocket)
 hooks/          pre-push (announce+overlap) · pre-commit (protected-path guard)
 ```
+
+Building a client or integrating another agent? The hub's HTTP endpoints and the full
+WebSocket protocol are documented in **[docs/hub-api.md](./docs/hub-api.md)**.
+
+## Troubleshooting
+
+| Symptom | Cause & fix |
+|---|---|
+| `WebSocket is not defined` / syntax errors on start | Node < 22. AgentSync uses Node's built-in WebSocket — upgrade to Node ≥ 22 (`node -v`). |
+| `(no git repo — skipped hook install)` on join | You joined from a folder that isn't a git clone. Identity + MCP still work; re-run `join` inside the repo to get the hooks. |
+| `bad token` when registering | The hub was started with `--token` (or `AGENTSYNC_TOKEN`) and yours doesn't match. Re-join with `--token <secret>`. |
+| Member shows offline while their agent is running | Presence flips offline after 30 s without a heartbeat — usually the agent's MCP session ended or the hub URL changed. Their claims auto-release after 90 s offline, so locks never leak. |
+| Claimed a task, got an overlap warning | Not an error — another member's active claim shares files with yours. Coordinate in chat before editing; the hub warns, it never blocks. |
+| Dashboard loads but chat/tools do nothing | You're hitting HTTP while the hub is behind an HTTPS proxy (or vice-versa). Use the exact scheme of the hub URL — `https://…` upgrades to `wss://` automatically. |
+| Hub restarted — is the board gone? | No. State replays from the append-only event log (`.agentsync/events.ndjson` by default, `--log` to relocate). Delete that file for a truly fresh hub. |
 
 ## Roadmap
 
